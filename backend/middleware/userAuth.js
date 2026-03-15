@@ -11,8 +11,11 @@ const userAuth = (req, res, next) => {
   }
   try {
     const tokenDecode = jwt.verify(token, process.env.JWT_SECRET);
-    if (tokenDecode.id) {
-      req.body.userId = tokenDecode.id;
+    const id = tokenDecode.id || tokenDecode.userId;
+
+    if (id) {
+      if (!req.body) req.body = {};
+      req.body.userId = id;
     } else {
       return res.json({
         success: false,

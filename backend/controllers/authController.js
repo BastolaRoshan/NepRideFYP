@@ -4,11 +4,11 @@ import userModel from "../models/userModel.js";
 import transporter from "../config/nodeMailer.js";
 
 export const register = async (req, res) => {
-  const { name, email, password } = req.body;
-  if (!name || !email  || !password) {
+  const { name, email, password, phone, role } = req.body;
+  if (!name || !email || !password || !phone) {
     return res.json({
       success: false,
-      message: "All fields are required",
+      message: "Required fields are missing",
     });
   }
   try {
@@ -25,10 +25,12 @@ export const register = async (req, res) => {
       name,
       email,
       password: hashedPassword,
+      phone,
+      role: role || "Customer",
     });
     await user.save();
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
 
@@ -36,6 +38,7 @@ export const register = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      path: "/",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -95,6 +98,7 @@ export const login = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      path: "/",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
     return res.json({
@@ -119,6 +123,7 @@ export const logout = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      path: "/",
     });
     return res.json({
       success: true,
@@ -156,6 +161,10 @@ export const sendVerifyOtp = async (req, res) => {
       text: `Your OTP for account verification is ${otp}.Verify your account within 1 hour.`,
     };
     await transporter.sendMail(mailOptions);
+    return res.json({
+      success: true,
+      message: "Verification OTP sent to your email",
+    });
   } catch (error) {
     res.json({
       success: false,
@@ -180,7 +189,7 @@ export const verifyEmail = async (req, res) => {
         message: "User not found",
       });
     }
-    if (user.isVerified === "" || user.isVerified !== otp) {
+    if (user.verifyOtp === "" || user.verifyOtp !== otp) {
       return res.json({
         success: false,
         message: "Invalid OTP",
@@ -210,7 +219,20 @@ export const verifyEmail = async (req, res) => {
 
 export const isAuthenticated = async (req, res) => {
   try {
-    return res.json({ success: true, message: "User is authenticated" });
+    const userId = req.body.userId;
+    if (!userId) {
+      return res.json({ success: false, message: "User ID not found in token" });
+    }
+    const user = await userModel.findById(userId).select("name email role");
+    if (!user) {
+      return res.json({ success: false, message: "User not found" });
+    }
+    return res.json({
+      success: true,
+      message: "User is authenticated",
+      role: user.role,
+      user: { name: user.name, email: user.email, role: user.role },
+    });
   } catch (error) {
     res.json({
       success: false,

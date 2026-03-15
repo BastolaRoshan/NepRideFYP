@@ -14,10 +14,14 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  phone: {
+    type: String,
+    required: true,
+  },
   role: {
     type: String,
-    enum: ["Client", "Freelancer", "Admin"],
-    default: "Freelancer",
+    enum: ["Customer", "Vendor", "Admin"],
+    default: "Customer",
   },
   verifyOtp: {
     type: String,

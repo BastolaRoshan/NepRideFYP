@@ -1,0 +1,55 @@
+
+import { Routes, Route, Navigate } from 'react-router-dom';
+import Home from './components/Home';
+import Login from './components/Login';
+import SignUp from './components/SignUp';
+import ProtectedRoute from './components/ProtectedRoute';
+import VendorDashboard from './pages/VendorDashboard';
+import CustomerDashboard from './pages/CustomerDashboard';
+import VehicleListingForm from './pages/VehicleListingForm';
+import './App.css';
+
+function App() {
+  return (
+    <>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<SignUp />} />
+
+        {/* Vendor Protected Routes */}
+        <Route
+          path="/vendor-dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['Vendor', 'Admin']}>
+              <VendorDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/vendor-dashboard/add-vehicle"
+          element={
+            <ProtectedRoute allowedRoles={['Vendor', 'Admin']}>
+              <VehicleListingForm />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Customer Protected Routes */}
+        <Route
+          path="/customer-dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['Customer', 'Admin']}>
+              <CustomerDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
+  );
+}
+
+export default App;
