@@ -3,6 +3,16 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import '../styles/Auth.css';
 
+const normalizeRole = (role) => {
+    const normalized = String(role || '').trim().toLowerCase();
+
+    if (normalized === 'customer' || normalized === 'costumer') return 'customer';
+    if (normalized === 'vendor') return 'vendor';
+    if (normalized === 'admin') return 'admin';
+
+    return 'customer';
+};
+
 const SignUp = () => {
     const [formData, setFormData] = useState({
         fullName: '',
@@ -51,13 +61,15 @@ const SignUp = () => {
             const data = await response.json();
 
             if (data.success) {
-                const role = (data.user?.role || 'Customer').toLowerCase();
+                const role = normalizeRole(data.user?.role);
 
                 // Set localStorage tokens so the frontend knows we are logged in
                 localStorage.setItem('isAuthenticated', 'true');
-                localStorage.setItem('userRole', role === 'admin' ? 'vendor' : role);
+                localStorage.setItem('userRole', role);
 
-                if (role === 'vendor' || role === 'admin') {
+                if (role === 'admin') {
+                    navigate('/admin-dashboard');
+                } else if (role === 'vendor') {
                     navigate('/vendor-dashboard');
                 } else {
                     navigate('/customer-dashboard');

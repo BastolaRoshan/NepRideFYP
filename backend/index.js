@@ -7,6 +7,7 @@ import authRouter from "./routes/authRoutes.js";
 import userRouter from "./routes/userRoute.js";
 import vehicleRoutes from "./routes/vehicleRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 
 const app = express();
 const port = process.env.PORT || 5001;
@@ -35,6 +36,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/user", userRouter);
 app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/bookings", bookingRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.listen(port, () => console.log(`Server is running on port ${port}`));
 

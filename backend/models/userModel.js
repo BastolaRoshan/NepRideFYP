@@ -1,5 +1,31 @@
 import mongoose from "mongoose";
 
+const userDocumentSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    url: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    status: {
+      type: String,
+      enum: ["Pending", "Approved", "Rejected"],
+      default: "Pending",
+    },
+    note: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+  },
+  { timestamps: true }
+);
+
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -42,6 +68,10 @@ const userSchema = new mongoose.Schema({
   resetOtpExpireAt: {
     type: Number,
     default: 0,
+  },
+  documents: {
+    type: [userDocumentSchema],
+    default: [],
   },
 });
 

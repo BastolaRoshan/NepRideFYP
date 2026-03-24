@@ -1,5 +1,11 @@
 import mongoose from 'mongoose';
 
+const generateRegistrationNumber = () => {
+    const timestampSegment = Date.now().toString(36).toUpperCase();
+    const randomSegment = Math.random().toString(36).slice(2, 8).toUpperCase();
+    return `NR-${timestampSegment}-${randomSegment}`;
+};
+
 const vehicleSchema = new mongoose.Schema({
     title: {
         type: String,
@@ -60,6 +66,12 @@ const vehicleSchema = new mongoose.Schema({
         type: String,
         trim: true,
     },
+    registrationNumber: {
+        type: String,
+        trim: true,
+        uppercase: true,
+        unique: true,
+    },
     vendor: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'user',
@@ -68,6 +80,14 @@ const vehicleSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 vehicleSchema.pre('validate', function syncLegacyFields() {
+    if (typeof this.registrationNumber === 'string') {
+        this.registrationNumber = this.registrationNumber.trim().toUpperCase();
+    }
+
+    if (!this.registrationNumber) {
+        this.registrationNumber = generateRegistrationNumber();
+    }
+
     if (!this.name && this.title) this.name = this.title;
     if (!this.title && this.name) this.title = this.name;
 

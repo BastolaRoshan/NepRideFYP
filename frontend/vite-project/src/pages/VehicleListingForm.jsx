@@ -14,8 +14,8 @@ const initialFormState = {
   image: '',
 };
 
-const vehicleTypeOptions = ['Car', 'Bike', 'SUV', 'Van', 'EV'];
-const fuelTypeOptions = ['Petrol', 'Diesel', 'Electric', 'Hybrid', 'CNG'];
+const vehicleTypeOptions = ['Car', 'Bike', 'EV'];
+const fuelTypeOptions = ['Petrol', 'Diesel', 'Electric'];
 
 const VehicleListingForm = () => {
   const navigate = useNavigate();

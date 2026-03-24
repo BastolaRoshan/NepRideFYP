@@ -28,6 +28,16 @@ const bookingSchema = new mongoose.Schema({
         type: Number,
         required: true,
     },
+    paymentStatus: {
+        type: String,
+        enum: ['Unpaid', 'Paid', 'Refunded'],
+        default: 'Unpaid',
+    },
+    paymentMethod: {
+        type: String,
+        trim: true,
+        default: '',
+    },
 }, { timestamps: true });
 
 const bookingModel = mongoose.models.booking || mongoose.model('booking', bookingSchema);

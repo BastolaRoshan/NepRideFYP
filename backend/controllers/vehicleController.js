@@ -10,6 +10,23 @@ const toPositiveInteger = (value) => {
     return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
+const normalizeRegistrationNumber = (value) => {
+    if (typeof value !== "string") return "";
+    return value.trim().toUpperCase();
+};
+
+const getMongoErrorMessage = (error) => {
+    if (error?.code === 11000) {
+        if (error?.keyPattern?.registrationNumber || error?.message?.includes("registrationNumber_1")) {
+            return "Registration number already exists. Please use a unique registration number.";
+        }
+
+        return "Duplicate value detected for a unique field.";
+    }
+
+    return error?.message || "Something went wrong";
+};
+
 const mapVehicleResponse = (vehicleDoc) => {
     const vehicle = vehicleDoc?.toObject ? vehicleDoc.toObject() : vehicleDoc;
 
@@ -34,6 +51,7 @@ export const addVehicle = async (req, res) => {
             fuelType,
             image,
             pricePerDay,
+            registrationNumber,
             name,
             type,
             seats,
@@ -47,6 +65,7 @@ export const addVehicle = async (req, res) => {
         const normalizedVehicleType = (vehicleType || type || "").trim();
         const normalizedFuelType = (fuelType || fuel || "").trim();
         const normalizedImage = typeof image === "string" ? image.trim() : "";
+        const normalizedRegistrationNumber = normalizeRegistrationNumber(registrationNumber);
 
         const normalizedSeatCapacity = toFiniteNumber(seatCapacity ?? seats);
         const normalizedPricePerDay = toFiniteNumber(pricePerDay);
@@ -82,6 +101,7 @@ export const addVehicle = async (req, res) => {
             seats: normalizedSeatCapacity,
             fuel: normalizedFuelType,
             speed: normalizedSpeed,
+            registrationNumber: normalizedRegistrationNumber || undefined,
             vendor: req.user._id,
         });
 
@@ -92,7 +112,7 @@ export const addVehicle = async (req, res) => {
             vehicle: mapVehicleResponse(vehicle),
         });
     } catch (error) {
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: getMongoErrorMessage(error) });
     }
 };
 
@@ -169,6 +189,16 @@ export const updateVehicle = async (req, res) => {
             updatePayload.speed = toFiniteNumber(updatePayload.speed);
         }
 
+        if (Object.prototype.hasOwnProperty.call(updatePayload, "registrationNumber")) {
+            const normalizedRegistrationNumber = normalizeRegistrationNumber(updatePayload.registrationNumber);
+
+            if (normalizedRegistrationNumber) {
+                updatePayload.registrationNumber = normalizedRegistrationNumber;
+            } else {
+                delete updatePayload.registrationNumber;
+            }
+        }
+
         vehicle = await vehicleModel.findByIdAndUpdate(req.params.id, updatePayload, {
             new: true,
             runValidators: true,
@@ -176,7 +206,7 @@ export const updateVehicle = async (req, res) => {
 
         res.json({ success: true, message: "Vehicle updated", vehicle: mapVehicleResponse(vehicle) });
     } catch (error) {
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: getMongoErrorMessage(error) });
     }
 };
 

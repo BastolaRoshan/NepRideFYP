@@ -184,7 +184,7 @@ const CustomerDashboard = () => {
                         <div style={{ display: 'flex', gap: '1rem', maxWidth: '600px' }}>
                             <input
                                 type="text"
-                                placeholder="Search vehicles e.g. SUV, Bike..."
+                                placeholder="Search vehicles e.g. Car, Bike..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 style={{ flex: 1, padding: '1rem', borderRadius: '4px', border: '1px solid #333', backgroundColor: '#1a1a1a', color: '#fff' }}

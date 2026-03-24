@@ -3,6 +3,16 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import '../styles/Auth.css';
 
+const normalizeRole = (role) => {
+  const normalized = String(role || '').trim().toLowerCase();
+
+  if (normalized === 'customer' || normalized === 'costumer') return 'customer';
+  if (normalized === 'vendor') return 'vendor';
+  if (normalized === 'admin') return 'admin';
+
+  return 'customer';
+};
+
 const Login = () => {
   const [formData, setFormData] = useState({
     email: '',
@@ -50,18 +60,18 @@ const Login = () => {
       console.log('Login response:', data);
 
       if (data.success) {
-        const role = (data.user?.role || 'Customer').toLowerCase();
+        const role = normalizeRole(data.user?.role);
 
         // Set localStorage tokens so the frontend knows we are logged in
         localStorage.setItem('isAuthenticated', 'true');
-        localStorage.setItem('userRole', role === 'admin' ? 'vendor' : role);
+        localStorage.setItem('userRole', role);
 
-        if (role === 'vendor' || role === 'admin') {
+        if (role === 'admin') {
+          navigate('/admin-dashboard');
+        } else if (role === 'vendor') {
           navigate('/vendor-dashboard');
-        } else if (role === 'customer') {
-          navigate('/customer-dashboard');
         } else {
-          navigate('/');
+          navigate('/customer-dashboard');
         }
       } else {
         setError(data.message || 'Login failed');

@@ -3,6 +3,16 @@ import jwt from "jsonwebtoken";
 import userModel from "../models/userModel.js";
 import transporter from "../config/nodeMailer.js";
 
+const normalizeRole = (role) => {
+  const normalized = String(role || "").trim().toLowerCase();
+
+  if (normalized === "customer" || normalized === "costumer") return "Customer";
+  if (normalized === "vendor") return "Vendor";
+  if (normalized === "admin") return "Admin";
+
+  return "Customer";
+};
+
 export const register = async (req, res) => {
   const { name, email, password, phone, role } = req.body;
   if (!name || !email || !password || !phone) {
@@ -26,7 +36,7 @@ export const register = async (req, res) => {
       email,
       password: hashedPassword,
       phone,
-      role: role || "Customer",
+      role: normalizeRole(role),
     });
     await user.save();
 
@@ -55,7 +65,7 @@ export const register = async (req, res) => {
       message: "Registered successfully",
       user: {
         name: user.name,
-        role: user.role,
+        role: normalizeRole(user.role),
       },
     });
   } catch (error) {
@@ -90,6 +100,8 @@ export const login = async (req, res) => {
       });
     }
 
+    const normalizedRole = normalizeRole(user.role);
+
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
@@ -106,7 +118,7 @@ export const login = async (req, res) => {
       message: "Logged in successfully",
       user: {
         name: user.name,
-        role: user.role,
+        role: normalizedRole,
       },
     });
   } catch (error) {
@@ -227,11 +239,14 @@ export const isAuthenticated = async (req, res) => {
     if (!user) {
       return res.json({ success: false, message: "User not found" });
     }
+
+    const normalizedRole = normalizeRole(user.role);
+
     return res.json({
       success: true,
       message: "User is authenticated",
-      role: user.role,
-      user: { name: user.name, email: user.email, role: user.role },
+      role: normalizedRole,
+      user: { name: user.name, email: user.email, role: normalizedRole },
     });
   } catch (error) {
     res.json({

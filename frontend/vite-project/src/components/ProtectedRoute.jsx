@@ -1,7 +1,15 @@
 import { Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 
-const normalizeRole = (role) => (role || '').toLowerCase();
+const normalizeRole = (role) => {
+    const normalized = String(role || '').trim().toLowerCase();
+
+    if (normalized === 'customer' || normalized === 'costumer') return 'customer';
+    if (normalized === 'vendor') return 'vendor';
+    if (normalized === 'admin') return 'admin';
+
+    return '';
+};
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     const [status, setStatus] = useState('loading');
@@ -61,7 +69,9 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     const normalizedAllowedRoles = allowedRoles.map(normalizeRole);
 
     if (normalizedAllowedRoles.length > 0 && !normalizedAllowedRoles.includes(userRole)) {
-        if (userRole === 'vendor' || userRole === 'admin') {
+        if (userRole === 'admin') {
+            return <Navigate to="/admin-dashboard" replace />;
+        } else if (userRole === 'vendor') {
             return <Navigate to="/vendor-dashboard" replace />;
         } else if (userRole === 'customer') {
             return <Navigate to="/customer-dashboard" replace />;

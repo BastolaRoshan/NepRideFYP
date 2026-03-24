@@ -7,6 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import VendorDashboard from './pages/VendorDashboard';
 import CustomerDashboard from './pages/CustomerDashboard';
 import VehicleListingForm from './pages/VehicleListingForm';
+import AdminDashboard from './pages/AdminDashboard';
 import './App.css';
 
 function App() {
@@ -23,6 +24,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['Vendor', 'Admin']}>
               <VendorDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin-dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['Admin']}>
+              <AdminDashboard />
             </ProtectedRoute>
           }
         />
