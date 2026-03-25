@@ -8,6 +8,7 @@ import userRouter from "./routes/userRoute.js";
 import vehicleRoutes from "./routes/vehicleRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import { cancelExpiredPendingBookings } from "./controllers/bookingController.js";
 
 const app = express();
 const port = process.env.PORT || 5001;
@@ -37,6 +38,20 @@ app.use("/api/user", userRouter);
 app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/admin", adminRoutes);
+
+const runBookingExpirySweep = async () => {
+  try {
+    const cancelledCount = await cancelExpiredPendingBookings();
+    if (cancelledCount > 0) {
+      console.log(`[booking-expiry-job] Cancelled ${cancelledCount} expired booking(s)`);
+    }
+  } catch (error) {
+    console.error('[booking-expiry-job] Failed:', error.message);
+  }
+};
+
+setInterval(runBookingExpirySweep, 60 * 1000);
+runBookingExpirySweep();
 
 app.listen(port, () => console.log(`Server is running on port ${port}`));
 

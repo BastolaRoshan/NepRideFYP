@@ -4,7 +4,7 @@ import userModel from "../models/userModel.js";
 const normalizeRole = (role) => {
     const normalized = String(role || "").trim().toLowerCase();
 
-    if (normalized === "customer" || normalized === "costumer") return "Customer";
+    if (normalized === "customer" || normalized === "costumer" || normalized === "freelancer") return "Customer";
     if (normalized === "vendor") return "Vendor";
     if (normalized === "admin") return "Admin";
 

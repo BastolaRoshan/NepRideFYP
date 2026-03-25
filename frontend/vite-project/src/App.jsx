@@ -8,6 +8,8 @@ import VendorDashboard from './pages/VendorDashboard';
 import CustomerDashboard from './pages/CustomerDashboard';
 import VehicleListingForm from './pages/VehicleListingForm';
 import AdminDashboard from './pages/AdminDashboard';
+import PaymentPage from './pages/PaymentPage';
+import BookingConfirmed from './pages/BookingConfirmed';
 import './App.css';
 
 function App() {
@@ -52,6 +54,24 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['Customer', 'Admin']}>
               <CustomerDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/payment/:bookingId"
+          element={
+            <ProtectedRoute allowedRoles={['Customer', 'Admin']}>
+              <PaymentPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/booking-confirmed/:bookingId"
+          element={
+            <ProtectedRoute allowedRoles={['Customer', 'Admin']}>
+              <BookingConfirmed />
             </ProtectedRoute>
           }
         />

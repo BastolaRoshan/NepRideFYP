@@ -1,7 +1,15 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Search, Clock, Users, Gauge, Fuel, ArrowRight, X, RefreshCcw } from 'lucide-react';
+import { LogOut, Search, Clock, Users, Gauge, Fuel, ArrowRight, RefreshCcw } from 'lucide-react';
 import '../styles/Home.css';
+import BookingModal from '../components/BookingModal';
+
+const formatCountdown = (remainingSeconds) => {
+    const safeSeconds = Math.max(0, remainingSeconds);
+    const minutes = Math.floor(safeSeconds / 60);
+    const seconds = safeSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+};
 
 const CustomerDashboard = () => {
     const navigate = useNavigate();
@@ -14,9 +22,8 @@ const CustomerDashboard = () => {
     const [loadingBookings, setLoadingBookings] = useState(false);
     const [bookingsError, setBookingsError] = useState('');
     const [bookingModal, setBookingModal] = useState(null);
-    const [bookingDates, setBookingDates] = useState({ startDate: '', endDate: '' });
-    const [bookingLoading, setBookingLoading] = useState(false);
-    const [bookingMessage, setBookingMessage] = useState(null);
+    const [currentTime, setCurrentTime] = useState(Date.now());
+    const [bookingActionLoadingId, setBookingActionLoadingId] = useState('');
 
     useEffect(() => {
         fetchVehicles();
@@ -94,6 +101,16 @@ const CustomerDashboard = () => {
         fetchCustomerBookings();
     };
 
+    useEffect(() => {
+        if (activeView !== 'bookings') return undefined;
+
+        const timerId = setInterval(() => {
+            setCurrentTime(Date.now());
+        }, 1000);
+
+        return () => clearInterval(timerId);
+    }, [activeView]);
+
     const handleLogout = async () => {
         try {
             const response = await fetch('/api/auth/logout', {
@@ -113,40 +130,40 @@ const CustomerDashboard = () => {
 
     const handleBookNow = (vehicle) => {
         setBookingModal(vehicle);
-        setBookingDates({ startDate: '', endDate: '' });
-        setBookingMessage(null);
     };
 
-    const handleConfirmBooking = async () => {
-        const { startDate, endDate } = bookingDates;
-        if (!startDate || !endDate) {
-            setBookingMessage({ type: 'error', text: 'Please select both start and end dates.' });
-            return;
-        }
-        if (new Date(endDate) <= new Date(startDate)) {
-            setBookingMessage({ type: 'error', text: 'End date must be after start date.' });
-            return;
-        }
+    const handleBookingCreated = () => {
+        setBookingModal(null);
+        setActiveView('bookings');
+        fetchCustomerBookings();
+    };
+
+    const handleProceedToPayment = (bookingId) => {
+        navigate(`/payment/${bookingId}`);
+    };
+
+    const handleCancelBooking = async (bookingId) => {
         try {
-            setBookingLoading(true);
-            const response = await fetch('/api/bookings/', {
-                method: 'POST',
+            setBookingActionLoadingId(bookingId);
+
+            const response = await fetch(`/api/bookings/${bookingId}/cancel`, {
+                method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ vehicleId: bookingModal._id, startDate, endDate }),
+                body: JSON.stringify({ reason: 'Cancelled from my bookings page' }),
             });
+
             const data = await response.json();
-            if (data.success) {
-                setBookingMessage({ type: 'success', text: 'Booking confirmed! You will be contacted shortly.' });
-                fetchCustomerBookings();
-                setTimeout(() => setBookingModal(null), 2000);
-            } else {
-                setBookingMessage({ type: 'error', text: data.message || 'Booking failed. Please try again.' });
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || 'Unable to cancel booking.');
             }
-        } catch {
-            setBookingMessage({ type: 'error', text: 'Network error. Please try again.' });
+
+            fetchCustomerBookings();
+        } catch (error) {
+            setBookingsError(error.message || 'Unable to cancel booking right now.');
         } finally {
-            setBookingLoading(false);
+            setBookingActionLoadingId('');
         }
     };
 
@@ -321,19 +338,37 @@ const CustomerDashboard = () => {
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             {customerBookings.map((booking) => {
-                                const status = booking.status || 'Pending';
-                                const badgeBackground = status === 'Confirmed'
+                                const normalizedStatus = String(booking.status || '').toLowerCase();
+                                const isPendingPayment = normalizedStatus === 'pending_payment';
+                                const canCancelBooking = normalizedStatus !== 'cancelled' && normalizedStatus !== 'completed' && !isPendingPayment;
+                                const expiresAtMs = booking.expiresAt ? new Date(booking.expiresAt).getTime() : 0;
+                                const createdAtMs = booking.createdAt ? new Date(booking.createdAt).getTime() : 0;
+                                const fallbackExpiryMs = createdAtMs ? createdAtMs + (10 * 60 * 1000) : 0;
+                                const effectiveExpiryMs = expiresAtMs || fallbackExpiryMs;
+                                const remainingSeconds = effectiveExpiryMs ? Math.floor((effectiveExpiryMs - currentTime) / 1000) : 0;
+                                const isExpired = isPendingPayment && Boolean(effectiveExpiryMs) && remainingSeconds <= 0;
+                                const status = normalizedStatus === 'pending_payment'
+                                    ? 'Pending Payment'
+                                    : normalizedStatus === 'confirmed'
+                                        ? 'Confirmed'
+                                        : normalizedStatus === 'cancelled'
+                                            ? 'Cancelled'
+                                            : normalizedStatus === 'completed'
+                                                ? 'Completed'
+                                                : booking.status || 'Pending';
+
+                                const badgeBackground = normalizedStatus === 'confirmed'
                                     ? '#16a34a33'
-                                    : status === 'Cancelled'
+                                    : normalizedStatus === 'cancelled'
                                         ? '#dc262633'
-                                        : status === 'Completed'
+                                        : normalizedStatus === 'completed'
                                             ? '#2563eb33'
                                             : '#d4af3733';
-                                const badgeColor = status === 'Confirmed'
+                                const badgeColor = normalizedStatus === 'confirmed'
                                     ? '#4ade80'
-                                    : status === 'Cancelled'
+                                    : normalizedStatus === 'cancelled'
                                         ? '#f87171'
-                                        : status === 'Completed'
+                                        : normalizedStatus === 'completed'
                                             ? '#60a5fa'
                                             : '#d4af37';
 
@@ -366,11 +401,78 @@ const CustomerDashboard = () => {
                                         </div>
 
                                         <p style={{ color: '#a0a0a0', fontSize: '0.875rem', margin: '0.25rem 0' }}>
-                                            From: {new Date(booking.startDate).toLocaleDateString()} — To: {new Date(booking.endDate).toLocaleDateString()}
+                                            From: {new Date(booking.startDate).toLocaleString([], { hour12: false })} — To: {new Date(booking.endDate).toLocaleString([], { hour12: false })}
                                         </p>
                                         <p style={{ color: '#d4af37', fontWeight: '600', margin: '0.4rem 0 0' }}>
                                             Total: Rs. {booking.totalPrice}
                                         </p>
+
+                                        {isPendingPayment && (
+                                            <div style={{ marginTop: '0.85rem' }}>
+                                                <p style={{ margin: '0 0 0.7rem', color: isExpired ? '#f87171' : '#d4af37', fontWeight: '600' }}>
+                                                    {isExpired
+                                                        ? 'Payment window expired'
+                                                        : `Time left: ${formatCountdown(remainingSeconds)}`}
+                                                </p>
+
+                                                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleProceedToPayment(booking._id)}
+                                                        disabled={isExpired || bookingActionLoadingId === booking._id}
+                                                        style={{
+                                                            border: 'none',
+                                                            borderRadius: '8px',
+                                                            padding: '0.55rem 0.85rem',
+                                                            fontWeight: 700,
+                                                            backgroundColor: isExpired || bookingActionLoadingId === booking._id ? '#655c42' : '#DBB33B',
+                                                            color: '#111',
+                                                            cursor: isExpired || bookingActionLoadingId === booking._id ? 'not-allowed' : 'pointer',
+                                                        }}
+                                                    >
+                                                        Pay Now
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCancelBooking(booking._id)}
+                                                        disabled={bookingActionLoadingId === booking._id}
+                                                        style={{
+                                                            border: '1px solid #f87171',
+                                                            borderRadius: '8px',
+                                                            padding: '0.55rem 0.85rem',
+                                                            fontWeight: 600,
+                                                            backgroundColor: 'transparent',
+                                                            color: '#f87171',
+                                                            cursor: bookingActionLoadingId === booking._id ? 'not-allowed' : 'pointer',
+                                                        }}
+                                                    >
+                                                        {bookingActionLoadingId === booking._id ? 'Cancelling...' : 'Cancel Booking'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {canCancelBooking && (
+                                            <div style={{ marginTop: '0.85rem', display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleCancelBooking(booking._id)}
+                                                    disabled={bookingActionLoadingId === booking._id}
+                                                    style={{
+                                                        border: '1px solid #f87171',
+                                                        borderRadius: '8px',
+                                                        padding: '0.55rem 0.85rem',
+                                                        fontWeight: 600,
+                                                        backgroundColor: 'transparent',
+                                                        color: '#f87171',
+                                                        cursor: bookingActionLoadingId === booking._id ? 'not-allowed' : 'pointer',
+                                                    }}
+                                                >
+                                                    {bookingActionLoadingId === booking._id ? 'Cancelling...' : 'Cancel Booking'}
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -381,59 +483,11 @@ const CustomerDashboard = () => {
 
             {/* Booking Modal */}
             {bookingModal && (
-                <div style={{
-                    position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.75)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-                }}>
-                    <div style={{
-                        backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '12px',
-                        padding: '2rem', width: '100%', maxWidth: '460px', position: 'relative'
-                    }}>
-                        <button onClick={() => setBookingModal(null)} style={{
-                            position: 'absolute', top: '1rem', right: '1rem',
-                            background: 'none', border: 'none', color: '#a0a0a0', cursor: 'pointer'
-                        }}><X size={20} /></button>
-                        <h2 style={{ color: '#fff', marginBottom: '0.25rem' }}>Book Vehicle</h2>
-                        <p style={{ color: '#a0a0a0', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-                            {bookingModal.title || bookingModal.name} — Rs. {bookingModal.pricePerDay}/day
-                        </p>
-                        <div style={{ marginBottom: '1rem' }}>
-                            <label style={{ display: 'block', color: '#ccc', marginBottom: '0.4rem', fontSize: '0.9rem' }}>Start Date</label>
-                            <input type="date" value={bookingDates.startDate}
-                                min={new Date().toISOString().split('T')[0]}
-                                onChange={e => setBookingDates(d => ({ ...d, startDate: e.target.value }))}
-                                style={{
-                                    width: '100%', padding: '0.75rem', borderRadius: '6px',
-                                    border: '1px solid #444', backgroundColor: '#0f0f0f',
-                                    color: '#fff', fontSize: '1rem', boxSizing: 'border-box'
-                                }}
-                            />
-                        </div>
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <label style={{ display: 'block', color: '#ccc', marginBottom: '0.4rem', fontSize: '0.9rem' }}>End Date</label>
-                            <input type="date" value={bookingDates.endDate}
-                                min={bookingDates.startDate || new Date().toISOString().split('T')[0]}
-                                onChange={e => setBookingDates(d => ({ ...d, endDate: e.target.value }))}
-                                style={{
-                                    width: '100%', padding: '0.75rem', borderRadius: '6px',
-                                    border: '1px solid #444', backgroundColor: '#0f0f0f',
-                                    color: '#fff', fontSize: '1rem', boxSizing: 'border-box'
-                                }}
-                            />
-                        </div>
-                        {bookingMessage && (
-                            <p style={{ color: bookingMessage.type === 'success' ? '#4ade80' : '#f87171', marginBottom: '1rem', fontSize: '0.9rem' }}>
-                                {bookingMessage.text}
-                            </p>
-                        )}
-                        <button onClick={handleConfirmBooking} disabled={bookingLoading}
-                            className="btn-primary-accent"
-                            style={{ width: '100%', padding: '0.875rem', fontSize: '1rem' }}
-                        >
-                            {bookingLoading ? 'Confirming...' : 'Confirm Booking'}
-                        </button>
-                    </div>
-                </div>
+                <BookingModal
+                    vehicle={bookingModal}
+                    onClose={() => setBookingModal(null)}
+                    onBookingCreated={handleBookingCreated}
+                />
             )}
         </div>
     );
