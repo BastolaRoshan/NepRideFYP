@@ -1,16 +1,11 @@
 import bookingModel from "../models/bookingModel.js";
 import userModel from "../models/userModel.js";
 import vehicleModel from "../models/vehicleModel.js";
-
-const normalizeRole = (role) => {
-  const normalized = String(role || "").trim().toLowerCase();
-
-  if (normalized === "customer" || normalized === "costumer") return "Customer";
-  if (normalized === "vendor") return "Vendor";
-  if (normalized === "admin") return "Admin";
-
-  return "";
-};
+import {
+  getVerificationAccessPayload,
+  normalizeRole,
+  syncUserVerificationState,
+} from "../utils/verification.js";
 
 const normalizePaymentStatus = (value) => {
   const normalized = String(value || "").trim().toLowerCase();
@@ -35,6 +30,7 @@ const normalizeDocumentStatus = (value) => {
 const toSafeUser = (userDoc) => {
   const user = userDoc?.toObject ? userDoc.toObject() : userDoc;
   const documents = Array.isArray(user?.documents) ? user.documents : [];
+  const verificationPayload = getVerificationAccessPayload(user);
 
   return {
     _id: user._id,
@@ -43,6 +39,12 @@ const toSafeUser = (userDoc) => {
     phone: user.phone,
     role: normalizeRole(user.role) || "Customer",
     isVerified: Boolean(user.isVerified),
+    verificationStatus: verificationPayload.verificationStatus,
+    isServiceAccessAllowed: verificationPayload.isServiceAccessAllowed,
+    verification: verificationPayload.verification,
+    verificationNote: user.verificationNote || "",
+    verificationSubmittedAt: user.verificationSubmittedAt || null,
+    verificationReviewedAt: user.verificationReviewedAt || null,
     documentsCount: documents.length,
     documents,
   };
@@ -125,7 +127,7 @@ export const getAdminUsers = async (req, res) => {
 
 export const updateAdminUser = async (req, res) => {
   try {
-    const { name, phone, role, isVerified } = req.body;
+    const { name, phone, role, verificationNote } = req.body;
     const updates = {};
 
     if (name !== undefined) updates.name = String(name).trim();
@@ -139,8 +141,8 @@ export const updateAdminUser = async (req, res) => {
       updates.role = normalizedRole;
     }
 
-    if (isVerified !== undefined) {
-      updates.isVerified = Boolean(isVerified);
+    if (verificationNote !== undefined) {
+      updates.verificationNote = String(verificationNote || "").trim();
     }
 
     const updatedUser = await userModel
@@ -363,6 +365,9 @@ export const addAdminUserDocument = async (req, res) => {
       note: String(note || "").trim(),
     });
 
+    syncUserVerificationState(user);
+    user.verificationReviewedAt = normalizedStatus === "Pending" ? null : new Date();
+
     await user.save();
 
     const document = user.documents[user.documents.length - 1];
@@ -411,6 +416,10 @@ export const updateAdminUserDocument = async (req, res) => {
     if (note !== undefined) {
       document.note = String(note || "").trim();
     }
+
+    syncUserVerificationState(user);
+    user.verificationNote = document.note || user.verificationNote || "";
+    user.verificationReviewedAt = document.status === "Pending" ? null : new Date();
 
     await user.save();
 

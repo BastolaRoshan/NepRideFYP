@@ -62,10 +62,18 @@ const SignUp = () => {
 
             if (data.success) {
                 const role = normalizeRole(data.user?.role);
+                const verificationStatus = data.user?.verificationStatus || 'NotSubmitted';
 
                 // Set localStorage tokens so the frontend knows we are logged in
                 localStorage.setItem('isAuthenticated', 'true');
                 localStorage.setItem('userRole', role);
+                localStorage.setItem('isServiceAccessAllowed', 'false');
+                localStorage.setItem('verificationStatus', verificationStatus);
+
+                if (role !== 'admin') {
+                    navigate('/verification');
+                    return;
+                }
 
                 if (role === 'admin') {
                     navigate('/admin-dashboard');

@@ -61,10 +61,12 @@ const Login = () => {
 
       if (data.success) {
         const role = normalizeRole(data.user?.role);
+        const isServiceAccessAllowed = Boolean(data.user?.isServiceAccessAllowed);
 
         // Set localStorage tokens so the frontend knows we are logged in
         localStorage.setItem('isAuthenticated', 'true');
         localStorage.setItem('userRole', role);
+        localStorage.setItem('isServiceAccessAllowed', isServiceAccessAllowed ? 'true' : 'false');
 
         if (role === 'admin') {
           navigate('/admin-dashboard');

@@ -1,15 +1,6 @@
 import jwt from "jsonwebtoken";
 import userModel from "../models/userModel.js";
-
-const normalizeRole = (role) => {
-    const normalized = String(role || "").trim().toLowerCase();
-
-    if (normalized === "customer" || normalized === "costumer" || normalized === "freelancer") return "Customer";
-    if (normalized === "vendor") return "Vendor";
-    if (normalized === "admin") return "Admin";
-
-    return "";
-};
+import { getVerificationAccessPayload, normalizeRole } from "../utils/verification.js";
 
 // Middleware to protect routes (Authentication)
 export const protect = async (req, res, next) => {
@@ -68,4 +59,25 @@ export const authorizeRoles = (...roles) => {
         req.user.role = userRole;
         next();
     };
+};
+
+export const requireApprovedVerification = (req, res, next) => {
+    const userRole = normalizeRole(req.user?.role);
+
+    if (userRole === "Admin") {
+        return next();
+    }
+
+    const { isServiceAccessAllowed, verificationStatus, verification } = getVerificationAccessPayload(req.user);
+
+    if (!isServiceAccessAllowed) {
+        return res.json({
+            success: false,
+            message: "Verification approval is required before using services.",
+            verificationStatus,
+            verification,
+        });
+    }
+
+    next();
 };

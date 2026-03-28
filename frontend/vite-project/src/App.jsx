@@ -10,6 +10,7 @@ import VehicleListingForm from './pages/VehicleListingForm';
 import AdminDashboard from './pages/AdminDashboard';
 import PaymentPage from './pages/PaymentPage';
 import BookingConfirmed from './pages/BookingConfirmed';
+import VerificationPage from './pages/VerificationPage';
 import './App.css';
 
 function App() {
@@ -19,12 +20,20 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
+        <Route
+          path="/verification"
+          element={
+            <ProtectedRoute allowedRoles={['Customer', 'Vendor', 'Admin']} requireServiceAccess={false}>
+              <VerificationPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Vendor Protected Routes */}
         <Route
           path="/vendor-dashboard"
           element={
-            <ProtectedRoute allowedRoles={['Vendor', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Vendor', 'Admin']} requireServiceAccess={false}>
               <VendorDashboard />
             </ProtectedRoute>
           }
@@ -52,7 +61,7 @@ function App() {
         <Route
           path="/customer-dashboard"
           element={
-            <ProtectedRoute allowedRoles={['Customer', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Customer', 'Admin']} requireServiceAccess={false}>
               <CustomerDashboard />
             </ProtectedRoute>
           }

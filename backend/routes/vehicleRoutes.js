@@ -6,7 +6,7 @@ import {
     deleteVehicle,
     getAllVehicles,
 } from "../controllers/vehicleController.js";
-import { protect, authorizeRoles } from "../middleware/roleAuth.js";
+import { protect, authorizeRoles, requireApprovedVerification } from "../middleware/roleAuth.js";
 
 const router = express.Router();
 
@@ -17,9 +17,9 @@ router.get("/", getAllVehicles);
 router.use(protect);
 router.use(authorizeRoles("Vendor", "Admin"));
 
-router.post("/", addVehicle);
+router.post("/", requireApprovedVerification, addVehicle);
 router.get("/vendor", getVendorVehicles);
-router.put("/:id", updateVehicle);
-router.delete("/:id", deleteVehicle);
+router.put("/:id", requireApprovedVerification, updateVehicle);
+router.delete("/:id", requireApprovedVerification, deleteVehicle);
 
 export default router;

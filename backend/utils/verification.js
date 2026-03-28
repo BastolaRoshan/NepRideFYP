@@ -1,0 +1,189 @@
+const ROLE_REQUIREMENT_KEYS = {
+  Customer: ["driving_licence", "citizenship"],
+  Vendor: ["bluebook", "citizenship"],
+  Admin: [],
+};
+
+const KEY_TO_TITLE = {
+  driving_licence: "Driving Licence",
+  citizenship: "Citizenship / Nagarikta",
+  bluebook: "Bluebook",
+};
+
+const normalizeRole = (role) => {
+  const normalized = String(role || "").trim().toLowerCase();
+
+  if (normalized === "customer" || normalized === "costumer") return "Customer";
+  if (normalized === "vendor") return "Vendor";
+  if (normalized === "admin") return "Admin";
+
+  return "Customer";
+};
+
+const normalizeText = (value) => {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+};
+
+export const normalizeDocumentKey = (title) => {
+  const normalized = normalizeText(title);
+
+  if (
+    normalized.includes("drivinglicence") ||
+    normalized.includes("drivinglicense") ||
+    normalized.includes("licence") ||
+    normalized.includes("license")
+  ) {
+    return "driving_licence";
+  }
+
+  if (normalized.includes("bluebook") || normalized.includes("bluebok")) {
+    return "bluebook";
+  }
+
+  if (
+    normalized.includes("citizenship") ||
+    normalized.includes("nagarikta") ||
+    normalized.includes("nagari")
+  ) {
+    return "citizenship";
+  }
+
+  return "";
+};
+
+const getDocumentsByKey = (documents = []) => {
+  return documents.reduce((accumulator, doc) => {
+    const key = normalizeDocumentKey(doc?.title);
+    if (!key) return accumulator;
+
+    if (!accumulator[key]) {
+      accumulator[key] = [];
+    }
+
+    accumulator[key].push(doc);
+    return accumulator;
+  }, {});
+};
+
+export const getRequiredDocumentKeys = (role) => {
+  const normalizedRole = normalizeRole(role);
+  return ROLE_REQUIREMENT_KEYS[normalizedRole] || ROLE_REQUIREMENT_KEYS.Customer;
+};
+
+export const getRequiredDocumentTitles = (role) => {
+  return getRequiredDocumentKeys(role).map((key) => KEY_TO_TITLE[key]);
+};
+
+export const evaluateUserVerification = (user) => {
+  const normalizedRole = normalizeRole(user?.role);
+  const requiredKeys = getRequiredDocumentKeys(normalizedRole);
+
+  if (normalizedRole === "Admin" || requiredKeys.length === 0) {
+    return {
+      role: normalizedRole,
+      requiredDocuments: [],
+      missingDocuments: [],
+      pendingDocuments: [],
+      rejectedDocuments: [],
+      approvedDocuments: [],
+      isApproved: true,
+    };
+  }
+
+  const docsByKey = getDocumentsByKey(Array.isArray(user?.documents) ? user.documents : []);
+
+  const missingDocuments = [];
+  const pendingDocuments = [];
+  const rejectedDocuments = [];
+  const approvedDocuments = [];
+
+  requiredKeys.forEach((key) => {
+    const docs = docsByKey[key] || [];
+    const latestDoc = docs[docs.length - 1];
+
+    if (!latestDoc) {
+      missingDocuments.push(KEY_TO_TITLE[key]);
+      return;
+    }
+
+    if (latestDoc.status === "Approved") {
+      approvedDocuments.push(KEY_TO_TITLE[key]);
+      return;
+    }
+
+    if (latestDoc.status === "Rejected") {
+      rejectedDocuments.push(KEY_TO_TITLE[key]);
+      return;
+    }
+
+    pendingDocuments.push(KEY_TO_TITLE[key]);
+  });
+
+  const isApproved =
+    missingDocuments.length === 0 && pendingDocuments.length === 0 && rejectedDocuments.length === 0;
+
+  return {
+    role: normalizedRole,
+    requiredDocuments: requiredKeys.map((key) => KEY_TO_TITLE[key]),
+    missingDocuments,
+    pendingDocuments,
+    rejectedDocuments,
+    approvedDocuments,
+    isApproved,
+  };
+};
+
+export const getVerificationAccessPayload = (user) => {
+  const verification = evaluateUserVerification(user);
+  const isAdmin = normalizeRole(user?.role) === "Admin";
+
+  let verificationStatus = "NotSubmitted";
+
+  if (isAdmin || verification.isApproved) {
+    verificationStatus = "Approved";
+  } else if (verification.rejectedDocuments.length > 0) {
+    verificationStatus = "Rejected";
+  } else if (verification.missingDocuments.length === verification.requiredDocuments.length) {
+    verificationStatus = "NotSubmitted";
+  } else {
+    verificationStatus = "UnderReview";
+  }
+
+  return {
+    verificationStatus,
+    isServiceAccessAllowed: isAdmin || verification.isApproved,
+    verification,
+  };
+};
+
+export const syncUserVerificationState = (user) => {
+  const { verification, isServiceAccessAllowed, verificationStatus } = getVerificationAccessPayload(user);
+
+  if (verificationStatus === "Approved" && isServiceAccessAllowed) {
+    user.verificationStatus = "Approved";
+    user.isVerified = true;
+    user.verificationReviewedAt = new Date();
+    return;
+  }
+
+  if (verification.rejectedDocuments.length > 0) {
+    user.verificationStatus = "Rejected";
+    user.isVerified = false;
+    user.verificationReviewedAt = new Date();
+    return;
+  }
+
+  if (verification.missingDocuments.length === verification.requiredDocuments.length) {
+    user.verificationStatus = "NotSubmitted";
+    user.isVerified = false;
+    return;
+  }
+
+  user.verificationStatus = "UnderReview";
+  user.isVerified = false;
+};
+
+export { normalizeRole };

@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Search, Clock, Users, Gauge, Fuel, ArrowRight, RefreshCcw } from 'lucide-react';
+import { LogOut, Search, Clock, Users, Gauge, Fuel, ArrowRight, RefreshCcw, BadgeCheck } from 'lucide-react';
 import '../styles/Home.css';
 import BookingModal from '../components/BookingModal';
 
@@ -101,6 +101,10 @@ const CustomerDashboard = () => {
         fetchCustomerBookings();
     };
 
+    const handleGoToVerification = () => {
+        navigate('/verification');
+    };
+
     useEffect(() => {
         if (activeView !== 'bookings') return undefined;
 
@@ -185,6 +189,9 @@ const CustomerDashboard = () => {
                         style={{ padding: '0.5rem 1rem' }}
                     >
                         <Clock size={18} /> My Bookings
+                    </button>
+                    <button className="btn-secondary-accent" onClick={handleGoToVerification} style={{ padding: '0.5rem 1rem' }}>
+                        <BadgeCheck size={18} /> Verify Account
                     </button>
                     <button className="btn-logout" onClick={handleLogout}>
                         <LogOut size={18} /> Logout

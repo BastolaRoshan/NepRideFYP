@@ -11,9 +11,10 @@ const normalizeRole = (role) => {
     return '';
 };
 
-const ProtectedRoute = ({ children, allowedRoles = [] }) => {
+const ProtectedRoute = ({ children, allowedRoles = [], requireServiceAccess = true }) => {
     const [status, setStatus] = useState('loading');
     const [userRole, setUserRole] = useState('');
+    const [serviceAccessAllowed, setServiceAccessAllowed] = useState(false);
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -29,6 +30,7 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
 
                 if (response.ok && data.success && data.role) {
                     setUserRole(normalizeRole(data.role));
+                    setServiceAccessAllowed(Boolean(data.isServiceAccessAllowed));
                     setStatus('ok');
                 } else {
                     setStatus('unauthorized');
@@ -64,6 +66,10 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
 
     if (status === 'unauthorized') {
         return <Navigate to="/login" replace />;
+    }
+
+    if (requireServiceAccess && !serviceAccessAllowed) {
+        return <Navigate to="/verification" replace />;
     }
 
     const normalizedAllowedRoles = allowedRoles.map(normalizeRole);

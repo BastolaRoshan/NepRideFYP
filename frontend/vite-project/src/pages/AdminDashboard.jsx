@@ -102,7 +102,6 @@ const AdminDashboard = () => {
     const draftMap = fetchedUsers.reduce((acc, user) => {
       acc[user._id] = {
         role: user.role || 'Customer',
-        isVerified: Boolean(user.isVerified),
       };
       return acc;
     }, {});
@@ -235,7 +234,6 @@ const AdminDashboard = () => {
         credentials: 'include',
         body: JSON.stringify({
           role: draft.role,
-          isVerified: draft.isVerified,
         }),
       });
 
@@ -570,7 +568,7 @@ const AdminDashboard = () => {
               <div style={{ ...cardStyle, color: '#a0a0a0' }}>No users found.</div>
             ) : (
               users.map((user) => {
-                const draft = userDrafts[user._id] || { role: user.role, isVerified: user.isVerified };
+                const draft = userDrafts[user._id] || { role: user.role };
                 return (
                   <div key={user._id} style={{ ...cardStyle, display: 'grid', gap: '0.65rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
@@ -581,7 +579,8 @@ const AdminDashboard = () => {
                       </div>
                       <div style={{ color: '#a0a0a0', fontSize: '0.82rem' }}>
                         <p style={{ margin: 0 }}>Docs: {user.documentsCount || 0}</p>
-                        <p style={{ margin: '0.2rem 0 0' }}>Verified: {user.isVerified ? 'Yes' : 'No'}</p>
+                        <p style={{ margin: '0.2rem 0 0' }}>Verification: {user.verificationStatus || 'NotSubmitted'}</p>
+                        <p style={{ margin: '0.2rem 0 0' }}>Access: {user.isServiceAccessAllowed ? 'Allowed' : 'Blocked'}</p>
                       </div>
                     </div>
 
@@ -607,20 +606,6 @@ const AdminDashboard = () => {
                               {role}
                             </option>
                           ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ color: '#a0a0a0', fontSize: '0.75rem', display: 'block', marginBottom: '0.25rem' }}>
-                          Verification
-                        </label>
-                        <select
-                          style={inputStyle}
-                          value={draft.isVerified ? 'true' : 'false'}
-                          onChange={(event) => updateUserDraft(user._id, 'isVerified', event.target.value === 'true')}
-                        >
-                          <option value="true">Verified</option>
-                          <option value="false">Not Verified</option>
                         </select>
                       </div>
 

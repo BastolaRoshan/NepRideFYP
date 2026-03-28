@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Plus, Edit2, Trash2, Package } from 'lucide-react';
+import { LogOut, Plus, Edit2, Trash2, Package, BadgeCheck } from 'lucide-react';
 
 const VendorDashboard = () => {
     const navigate = useNavigate();
@@ -74,6 +74,10 @@ const VendorDashboard = () => {
 
     const handleAddVehicle = () => {
         navigate('/vendor-dashboard/add-vehicle');
+    };
+
+    const handleGoToVerification = () => {
+        navigate('/verification');
     };
 
     const handleEditVehicle = (vehicle) => {
@@ -160,19 +164,34 @@ const VendorDashboard = () => {
                         <h1 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#d4af37', margin: 0 }}>NepRide</h1>
                         <span style={{ color: '#fff', fontSize: '1rem', fontWeight: 'normal' }}>Vendor Dashboard</span>
                     </div>
-                    <button
-                        onClick={handleLogout}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: '0.5rem',
-                            padding: '0.5rem 1rem', border: '1px solid #d4af37',
-                            color: '#d4af37', borderRadius: '8px', backgroundColor: 'transparent',
-                            cursor: 'pointer', fontWeight: '500', transition: 'all 0.3s',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#d4af37'; e.currentTarget.style.color = '#000'; }}
-                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#d4af37'; }}
-                    >
-                        <LogOut size={18} /> Logout
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <button
+                            onClick={handleGoToVerification}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '0.5rem',
+                                padding: '0.5rem 1rem', border: '1px solid #2f7ee6',
+                                color: '#9fc3ff', borderRadius: '8px', backgroundColor: 'transparent',
+                                cursor: 'pointer', fontWeight: '500', transition: 'all 0.3s',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#2f7ee6'; e.currentTarget.style.color = '#ffffff'; }}
+                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#9fc3ff'; }}
+                        >
+                            <BadgeCheck size={18} /> Verify Account
+                        </button>
+                        <button
+                            onClick={handleLogout}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '0.5rem',
+                                padding: '0.5rem 1rem', border: '1px solid #d4af37',
+                                color: '#d4af37', borderRadius: '8px', backgroundColor: 'transparent',
+                                cursor: 'pointer', fontWeight: '500', transition: 'all 0.3s',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#d4af37'; e.currentTarget.style.color = '#000'; }}
+                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#d4af37'; }}
+                        >
+                            <LogOut size={18} /> Logout
+                        </button>
+                    </div>
                 </div>
             </nav>
 

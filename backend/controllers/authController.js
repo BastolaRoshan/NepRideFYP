@@ -2,16 +2,11 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import userModel from "../models/userModel.js";
 import transporter from "../config/nodeMailer.js";
-
-const normalizeRole = (role) => {
-  const normalized = String(role || "").trim().toLowerCase();
-
-  if (normalized === "customer" || normalized === "costumer") return "Customer";
-  if (normalized === "vendor") return "Vendor";
-  if (normalized === "admin") return "Admin";
-
-  return "Customer";
-};
+import {
+  getVerificationAccessPayload,
+  getRequiredDocumentTitles,
+  normalizeRole,
+} from "../utils/verification.js";
 
 export const register = async (req, res) => {
   const { name, email, password, phone, role } = req.body;
@@ -66,6 +61,8 @@ export const register = async (req, res) => {
       user: {
         name: user.name,
         role: normalizeRole(user.role),
+        verificationStatus: user.verificationStatus,
+        requiredDocuments: getRequiredDocumentTitles(user.role),
       },
     });
   } catch (error) {
@@ -101,6 +98,7 @@ export const login = async (req, res) => {
     }
 
     const normalizedRole = normalizeRole(user.role);
+    const { isServiceAccessAllowed, verificationStatus, verification } = getVerificationAccessPayload(user);
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
       expiresIn: "7d",
@@ -119,6 +117,10 @@ export const login = async (req, res) => {
       user: {
         name: user.name,
         role: normalizedRole,
+        verificationStatus,
+        isServiceAccessAllowed,
+        requiredDocuments: verification.requiredDocuments,
+        missingDocuments: verification.missingDocuments,
       },
     });
   } catch (error) {
@@ -235,18 +237,30 @@ export const isAuthenticated = async (req, res) => {
     if (!userId) {
       return res.json({ success: false, message: "User ID not found in token" });
     }
-    const user = await userModel.findById(userId).select("name email role");
+    const user = await userModel.findById(userId).select(
+      "name email role verificationStatus documents isVerified verificationSubmittedAt verificationReviewedAt verificationNote"
+    );
     if (!user) {
       return res.json({ success: false, message: "User not found" });
     }
 
     const normalizedRole = normalizeRole(user.role);
+    const { verificationStatus, isServiceAccessAllowed, verification } = getVerificationAccessPayload(user);
 
     return res.json({
       success: true,
       message: "User is authenticated",
       role: normalizedRole,
-      user: { name: user.name, email: user.email, role: normalizedRole },
+      verificationStatus,
+      isServiceAccessAllowed,
+      verification,
+      user: {
+        name: user.name,
+        email: user.email,
+        role: normalizedRole,
+        verificationStatus,
+        isServiceAccessAllowed,
+      },
     });
   } catch (error) {
     res.json({

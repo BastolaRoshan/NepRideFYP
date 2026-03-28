@@ -61,6 +61,24 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  verificationStatus: {
+    type: String,
+    enum: ["NotSubmitted", "UnderReview", "Approved", "Rejected"],
+    default: "NotSubmitted",
+  },
+  verificationNote: {
+    type: String,
+    trim: true,
+    default: "",
+  },
+  verificationSubmittedAt: {
+    type: Date,
+    default: null,
+  },
+  verificationReviewedAt: {
+    type: Date,
+    default: null,
+  },
   resetOtp: {
     type: String,
     default: "",
