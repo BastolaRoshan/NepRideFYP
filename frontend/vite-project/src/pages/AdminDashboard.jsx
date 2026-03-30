@@ -13,6 +13,18 @@ const userRoleOptions = ['Customer', 'Vendor', 'Admin'];
 const paymentStatusOptions = ['Unpaid', 'Paid', 'Refunded'];
 const documentStatusOptions = ['Pending', 'Approved', 'Rejected'];
 
+const resolveDocumentUrl = (url) => {
+  const normalized = String(url || '').trim();
+  if (!normalized) return '#';
+
+  if (/^https?:\/\//i.test(normalized)) {
+    return normalized;
+  }
+
+  const withLeadingSlash = normalized.startsWith('/') ? normalized : `/${normalized}`;
+  return withLeadingSlash;
+};
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
 
@@ -33,6 +45,7 @@ const AdminDashboard = () => {
   const [userDrafts, setUserDrafts] = useState({});
   const [paymentDrafts, setPaymentDrafts] = useState({});
   const [documentDrafts, setDocumentDrafts] = useState({});
+  const [savingUsers, setSavingUsers] = useState({});
 
   const [loading, setLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState({ message: '', isError: false });
@@ -223,9 +236,13 @@ const AdminDashboard = () => {
     }));
   };
 
-  const saveUser = async (userId) => {
-    const draft = userDrafts[userId];
-    if (!draft) return;
+  const saveUser = async (userId, nextRole) => {
+    const draft = userDrafts[userId] || {};
+    const roleToSave = nextRole || draft.role;
+
+    if (!roleToSave) return;
+
+    setSavingUsers((prev) => ({ ...prev, [userId]: true }));
 
     try {
       const response = await fetch(`/api/admin/users/${userId}`, {
@@ -233,7 +250,7 @@ const AdminDashboard = () => {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          role: draft.role,
+          role: roleToSave,
         }),
       });
 
@@ -243,10 +260,19 @@ const AdminDashboard = () => {
       }
 
       setUsers((prev) => prev.map((user) => (user._id === userId ? data.user : user)));
+      setUserDrafts((prev) => ({
+        ...prev,
+        [userId]: {
+          ...(prev[userId] || {}),
+          role: roleToSave,
+        },
+      }));
       setActionMessage({ message: 'User updated successfully.', isError: false });
       handleRefresh();
     } catch (error) {
       setActionMessage({ message: error.message || 'Failed to update user', isError: true });
+    } finally {
+      setSavingUsers((prev) => ({ ...prev, [userId]: false }));
     }
   };
 
@@ -569,6 +595,8 @@ const AdminDashboard = () => {
             ) : (
               users.map((user) => {
                 const draft = userDrafts[user._id] || { role: user.role };
+                const userDocuments = Array.isArray(user.documents) ? user.documents : [];
+
                 return (
                   <div key={user._id} style={{ ...cardStyle, display: 'grid', gap: '0.65rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
@@ -578,7 +606,7 @@ const AdminDashboard = () => {
                         <p style={{ margin: '0.2rem 0 0', color: '#a0a0a0', fontSize: '0.84rem' }}>{user.phone}</p>
                       </div>
                       <div style={{ color: '#a0a0a0', fontSize: '0.82rem' }}>
-                        <p style={{ margin: 0 }}>Docs: {user.documentsCount || 0}</p>
+                        <p style={{ margin: 0 }}>Docs: {userDocuments.length || 0}</p>
                         <p style={{ margin: '0.2rem 0 0' }}>Verification: {user.verificationStatus || 'NotSubmitted'}</p>
                         <p style={{ margin: '0.2rem 0 0' }}>Access: {user.isServiceAccessAllowed ? 'Allowed' : 'Blocked'}</p>
                       </div>
@@ -599,7 +627,12 @@ const AdminDashboard = () => {
                         <select
                           style={inputStyle}
                           value={draft.role}
-                          onChange={(event) => updateUserDraft(user._id, 'role', event.target.value)}
+                          onChange={(event) => {
+                            const selectedRole = event.target.value;
+                            updateUserDraft(user._id, 'role', selectedRole);
+                            saveUser(user._id, selectedRole);
+                          }}
+                          disabled={Boolean(savingUsers[user._id])}
                         >
                           {userRoleOptions.map((role) => (
                             <option key={role} value={role}>
@@ -607,12 +640,12 @@ const AdminDashboard = () => {
                             </option>
                           ))}
                         </select>
+                        {savingUsers[user._id] ? (
+                          <p style={{ margin: '0.35rem 0 0', color: '#a0a0a0', fontSize: '0.75rem' }}>Saving...</p>
+                        ) : null}
                       </div>
 
                       <div style={{ display: 'flex', gap: '0.5rem', alignSelf: 'end' }}>
-                        <button style={actionButtonStyle} onClick={() => saveUser(user._id)}>
-                          <Save size={13} /> Save
-                        </button>
                         <button
                           style={{ ...actionButtonStyle, border: '1px solid #ef4444', color: '#ef4444' }}
                           onClick={() => deleteUser(user._id)}
@@ -620,6 +653,55 @@ const AdminDashboard = () => {
                           <Trash2 size={13} /> Delete
                         </button>
                       </div>
+                    </div>
+
+                    <div
+                      style={{
+                        border: '1px solid #333',
+                        borderRadius: '10px',
+                        padding: '0.65rem',
+                        backgroundColor: '#0b0b0b',
+                      }}
+                    >
+                      <p style={{ margin: 0, color: '#d4af37', fontSize: '0.8rem', fontWeight: 600 }}>Submitted Documents</p>
+
+                      {userDocuments.length === 0 ? (
+                        <p style={{ margin: '0.4rem 0 0', color: '#a0a0a0', fontSize: '0.8rem' }}>No documents submitted yet.</p>
+                      ) : (
+                        <div style={{ marginTop: '0.45rem', display: 'grid', gap: '0.45rem' }}>
+                          {userDocuments.map((document) => (
+                            <div
+                              key={document._id || `${document.title}-${document.url}`}
+                              style={{
+                                border: '1px solid #2f2f2f',
+                                borderRadius: '8px',
+                                padding: '0.45rem 0.55rem',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                gap: '0.75rem',
+                                flexWrap: 'wrap',
+                              }}
+                            >
+                              <div>
+                                <p style={{ margin: 0, fontSize: '0.84rem', color: '#fff' }}>{document.title}</p>
+                                <p style={{ margin: '0.15rem 0 0', fontSize: '0.76rem', color: '#a0a0a0' }}>
+                                  Status: {document.status || 'Pending'}
+                                </p>
+                              </div>
+
+                              <a
+                                href={resolveDocumentUrl(document.url)}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ color: '#d4af37', fontSize: '0.78rem' }}
+                              >
+                                View
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -821,7 +903,7 @@ const AdminDashboard = () => {
                         </p>
                       </div>
                       <a
-                        href={document.url}
+                        href={resolveDocumentUrl(document.url)}
                         target="_blank"
                         rel="noreferrer"
                         style={{ color: '#d4af37', fontSize: '0.85rem' }}

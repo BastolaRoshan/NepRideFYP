@@ -33,7 +33,7 @@ function App() {
         <Route
           path="/vendor-dashboard"
           element={
-            <ProtectedRoute allowedRoles={['Vendor', 'Admin']} requireServiceAccess={false}>
+            <ProtectedRoute allowedRoles={['Vendor', 'Admin']}>
               <VendorDashboard />
             </ProtectedRoute>
           }
@@ -61,7 +61,7 @@ function App() {
         <Route
           path="/customer-dashboard"
           element={
-            <ProtectedRoute allowedRoles={['Customer', 'Admin']} requireServiceAccess={false}>
+            <ProtectedRoute allowedRoles={['Customer', 'Admin']}>
               <CustomerDashboard />
             </ProtectedRoute>
           }

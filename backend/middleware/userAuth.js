@@ -14,6 +14,8 @@ const userAuth = (req, res, next) => {
     const id = tokenDecode.id || tokenDecode.userId;
 
     if (id) {
+      req.userId = id;
+      req.user = { _id: id };
       if (!req.body) req.body = {};
       req.body.userId = id;
     } else {

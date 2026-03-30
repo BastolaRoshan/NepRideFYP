@@ -9,7 +9,8 @@ import {
 
 const REQUIRED_TITLES_BY_KEY = {
   driving_licence: "Driving Licence",
-  citizenship: "Citizenship / Nagarikta",
+  citizenship_front: "Citizenship / Nagarikta (Front Side)",
+  citizenship_back: "Citizenship / Nagarikta (Back Side)",
   bluebook: "Bluebook",
 };
 
@@ -23,7 +24,15 @@ const extractSubmissionEntries = (body = {}) => {
   };
 
   add("Driving Licence", body.drivingLicenceUrl || body.drivingLicenseUrl);
-  add("Citizenship / Nagarikta", body.citizenshipUrl || body.nagariktaUrl || body.nagariUrl);
+  add(
+    "Citizenship / Nagarikta (Front Side)",
+    body.citizenshipFrontUrl ||
+      body.nagariktaFrontUrl ||
+      body.citizenshipUrl ||
+      body.nagariktaUrl ||
+      body.nagariUrl
+  );
+  add("Citizenship / Nagarikta (Back Side)", body.citizenshipBackUrl || body.nagariktaBackUrl);
   add("Bluebook", body.bluebookUrl);
 
   if (Array.isArray(body.documents)) {
@@ -80,8 +89,8 @@ const keepLatestRequiredDocuments = (documents = [], role) => {
     latestByKey[key] = {
       title: requiredByKey[key],
       url: document.url,
-      status: "Pending",
-      note: "",
+      status: document.status || "Pending",
+      note: document.note || "",
     };
   });
 
@@ -114,9 +123,9 @@ const buildVerificationResponse = (user) => {
 
 export const getAllUser = async (req, res) => {
   try {
-    const { userId } = req.body;
+    const userId = req.userId || req.user?._id || req.body?.userId;
     const user = await userModel.findById(userId).select(
-      "name email role isVerified verificationStatus verificationNote verificationSubmittedAt verificationReviewedAt documents"
+      "name email phone role isVerified verificationStatus verificationNote verificationSubmittedAt verificationReviewedAt documents"
     );
     if (!user) {
       return res.json({
@@ -132,6 +141,7 @@ export const getAllUser = async (req, res) => {
       getAllUser: {
         name: user.name,
         email: user.email,
+        phone: user.phone,
         role: normalizeRole(user.role),
         isVerified: user.isVerified,
         ...verificationState,
@@ -147,7 +157,7 @@ export const getAllUser = async (req, res) => {
 
 export const getVerificationStatus = async (req, res) => {
   try {
-    const { userId } = req.body;
+    const userId = req.userId || req.user?._id || req.body?.userId;
     const user = await userModel.findById(userId).select(
       "role documents verificationStatus verificationNote verificationSubmittedAt verificationReviewedAt isVerified"
     );
@@ -167,7 +177,7 @@ export const getVerificationStatus = async (req, res) => {
 
 export const submitVerificationDocuments = async (req, res) => {
   try {
-    const { userId } = req.body;
+    const userId = req.userId || req.user?._id || req.body?.userId;
     const user = await userModel.findById(userId);
 
     if (!user) {
@@ -213,7 +223,24 @@ export const submitVerificationDocuments = async (req, res) => {
       });
     }
 
-    const mergedDocuments = keepLatestRequiredDocuments(nextDocuments, role);
+    const mergedDocuments = keepLatestRequiredDocuments([...(user.documents || []), ...nextDocuments], role);
+
+    const mergedRequiredKeys = mergedDocuments
+      .map((document) => normalizeDocumentKey(document?.title))
+      .filter(Boolean);
+
+    const missingRequiredTitles = requiredTitles.filter((title) => {
+      const requiredKey = normalizeDocumentKey(title);
+      return requiredKey && !mergedRequiredKeys.includes(requiredKey);
+    });
+
+    if (missingRequiredTitles.length > 0) {
+      return res.json({
+        success: false,
+        message: `Please upload all required documents: ${missingRequiredTitles.join(", ")}`,
+      });
+    }
+
     user.documents = mergedDocuments;
     user.verificationSubmittedAt = new Date();
     user.verificationReviewedAt = null;

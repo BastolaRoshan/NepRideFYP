@@ -68,6 +68,11 @@ const Login = () => {
         localStorage.setItem('userRole', role);
         localStorage.setItem('isServiceAccessAllowed', isServiceAccessAllowed ? 'true' : 'false');
 
+        if (role !== 'admin' && !isServiceAccessAllowed) {
+          navigate('/verification');
+          return;
+        }
+
         if (role === 'admin') {
           navigate('/admin-dashboard');
         } else if (role === 'vendor') {

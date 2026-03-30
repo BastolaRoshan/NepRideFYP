@@ -10,6 +10,13 @@ const VendorDashboard = () => {
     const [loading, setLoading] = useState(false);
     const [actionState, setActionState] = useState({ message: '', isError: false });
     const [deletingVehicleId, setDeletingVehicleId] = useState('');
+    const [verificationStatus, setVerificationStatus] = useState(localStorage.getItem('verificationStatus') || 'NotSubmitted');
+
+    const normalizeVerificationStatus = (status) => {
+        if (status === 'UnderReview') return 'Under Review';
+        if (status === 'NotSubmitted') return 'Not Submitted';
+        return status || 'Not Submitted';
+    };
 
     useEffect(() => {
         if (activeTab === 'vehicles') {
@@ -18,6 +25,30 @@ const VendorDashboard = () => {
             fetchBookings();
         }
     }, [activeTab]);
+
+    useEffect(() => {
+        fetchVerificationStatus();
+    }, []);
+
+    const fetchVerificationStatus = async () => {
+        try {
+            const response = await fetch('/api/user/verification-status', {
+                method: 'GET',
+                credentials: 'include',
+            });
+
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                return;
+            }
+
+            const nextStatus = data?.verification?.verificationStatus || 'NotSubmitted';
+            setVerificationStatus(nextStatus);
+            localStorage.setItem('verificationStatus', nextStatus);
+        } catch {
+            // keep fallback local state if API request fails
+        }
+    };
 
     const fetchVehicles = async () => {
         try {
@@ -176,7 +207,7 @@ const VendorDashboard = () => {
                             onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#2f7ee6'; e.currentTarget.style.color = '#ffffff'; }}
                             onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#9fc3ff'; }}
                         >
-                            <BadgeCheck size={18} /> Verify Account
+                            <BadgeCheck size={18} /> Verify Account - {normalizeVerificationStatus(verificationStatus)}
                         </button>
                         <button
                             onClick={handleLogout}

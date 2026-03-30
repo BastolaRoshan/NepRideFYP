@@ -1,12 +1,13 @@
 const ROLE_REQUIREMENT_KEYS = {
-  Customer: ["driving_licence", "citizenship"],
-  Vendor: ["bluebook", "citizenship"],
+  Customer: ["driving_licence", "citizenship_front", "citizenship_back"],
+  Vendor: ["bluebook", "citizenship_front", "citizenship_back"],
   Admin: [],
 };
 
 const KEY_TO_TITLE = {
   driving_licence: "Driving Licence",
-  citizenship: "Citizenship / Nagarikta",
+  citizenship_front: "Citizenship / Nagarikta (Front Side)",
+  citizenship_back: "Citizenship / Nagarikta (Back Side)",
   bluebook: "Bluebook",
 };
 
@@ -31,6 +32,24 @@ export const normalizeDocumentKey = (title) => {
   const normalized = normalizeText(title);
 
   if (
+    normalized.includes("citizenshipfront") ||
+    normalized.includes("nagariktafront") ||
+    normalized.includes("nagariktafr") ||
+    normalized.includes("citizenshipf")
+  ) {
+    return "citizenship_front";
+  }
+
+  if (
+    normalized.includes("citizenshipback") ||
+    normalized.includes("nagariktaback") ||
+    normalized.includes("nagariktab") ||
+    normalized.includes("citizenshipb")
+  ) {
+    return "citizenship_back";
+  }
+
+  if (
     normalized.includes("drivinglicence") ||
     normalized.includes("drivinglicense") ||
     normalized.includes("licence") ||
@@ -48,7 +67,15 @@ export const normalizeDocumentKey = (title) => {
     normalized.includes("nagarikta") ||
     normalized.includes("nagari")
   ) {
-    return "citizenship";
+    if (normalized.includes("back") || normalized.includes("rear") || normalized.includes("reverse")) {
+      return "citizenship_back";
+    }
+
+    if (normalized.includes("front") || normalized.includes("face") || normalized.includes("obverse")) {
+      return "citizenship_front";
+    }
+
+    return "citizenship_front";
   }
 
   return "";

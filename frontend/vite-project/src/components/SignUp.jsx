@@ -70,18 +70,7 @@ const SignUp = () => {
                 localStorage.setItem('isServiceAccessAllowed', 'false');
                 localStorage.setItem('verificationStatus', verificationStatus);
 
-                if (role !== 'admin') {
-                    navigate('/verification');
-                    return;
-                }
-
-                if (role === 'admin') {
-                    navigate('/admin-dashboard');
-                } else if (role === 'vendor') {
-                    navigate('/vendor-dashboard');
-                } else {
-                    navigate('/customer-dashboard');
-                }
+                navigate('/', { replace: true });
             } else {
                 setError(data.message || 'Registration failed');
             }
@@ -214,7 +203,7 @@ const SignUp = () => {
                         </button>
                     </form>
 
-                    <p className="auth-note">Choose a role now, and the app will send you to the right dashboard after signup.</p>
+                    <p className="auth-note">After signup, you will be redirected to the home page.</p>
 
                     <div className="auth-footer">
                         Have an account? <Link to="/login"><strong>Log In</strong></Link>

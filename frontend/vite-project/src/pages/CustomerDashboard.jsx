@@ -24,10 +24,38 @@ const CustomerDashboard = () => {
     const [bookingModal, setBookingModal] = useState(null);
     const [currentTime, setCurrentTime] = useState(Date.now());
     const [bookingActionLoadingId, setBookingActionLoadingId] = useState('');
+    const [verificationStatus, setVerificationStatus] = useState(localStorage.getItem('verificationStatus') || 'NotSubmitted');
 
     useEffect(() => {
         fetchVehicles();
+        fetchVerificationStatus();
     }, []);
+
+    const normalizeVerificationStatus = (status) => {
+        if (status === 'UnderReview') return 'Under Review';
+        if (status === 'NotSubmitted') return 'Not Submitted';
+        return status || 'Not Submitted';
+    };
+
+    const fetchVerificationStatus = async () => {
+        try {
+            const response = await fetch('/api/user/verification-status', {
+                method: 'GET',
+                credentials: 'include',
+            });
+
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                return;
+            }
+
+            const nextStatus = data?.verification?.verificationStatus || 'NotSubmitted';
+            setVerificationStatus(nextStatus);
+            localStorage.setItem('verificationStatus', nextStatus);
+        } catch {
+            // keep fallback local state if API request fails
+        }
+    };
 
     const filteredVehicles = useMemo(() => {
         if (!searchQuery.trim()) {
@@ -191,7 +219,7 @@ const CustomerDashboard = () => {
                         <Clock size={18} /> My Bookings
                     </button>
                     <button className="btn-secondary-accent" onClick={handleGoToVerification} style={{ padding: '0.5rem 1rem' }}>
-                        <BadgeCheck size={18} /> Verify Account
+                        <BadgeCheck size={18} /> Verify Account - {normalizeVerificationStatus(verificationStatus)}
                     </button>
                     <button className="btn-logout" onClick={handleLogout}>
                         <LogOut size={18} /> Logout
