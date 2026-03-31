@@ -738,7 +738,7 @@ const AdminDashboard = () => {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <strong style={{ color: '#d4af37' }}>Rs. {vehicle.pricePerDay}</strong>
+                    <strong style={{ color: '#d4af37' }}>Rs. {Number(vehicle.pricePerDay || 0).toLocaleString()} / day</strong>
                     <button
                       style={{ ...actionButtonStyle, border: '1px solid #ef4444', color: '#ef4444' }}
                       onClick={() => deleteVehicle(vehicle._id)}
@@ -774,8 +774,14 @@ const AdminDashboard = () => {
                         <p style={{ margin: '0.2rem 0 0', color: '#a0a0a0', fontSize: '0.84rem' }}>
                           Booking status: {payment.bookingStatus}
                         </p>
+                        <p style={{ margin: '0.2rem 0 0', color: '#a0a0a0', fontSize: '0.84rem' }}>
+                          Price: Rs. {Number(payment.vehicle?.pricePerDay || 0).toLocaleString()} / day
+                        </p>
+                        <p style={{ margin: '0.2rem 0 0', color: '#a0a0a0', fontSize: '0.84rem' }}>
+                          Days: {Number(payment.totalDays || 0) || '--'}
+                        </p>
                       </div>
-                      <strong style={{ color: '#d4af37' }}>Rs. {payment.amount}</strong>
+                      <strong style={{ color: '#d4af37' }}>Total: Rs. {Number(payment.amount || 0).toLocaleString()}</strong>
                     </div>
 
                     <div

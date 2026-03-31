@@ -135,7 +135,7 @@ const Home = () => {
                     <div className="vehicle-footer">
                       <div>
                         <p className="vehicle-price-label">Price per day</p>
-                        <p className="vehicle-price-value">Rs. {vehicle.pricePerDay}</p>
+                        <p className="vehicle-price-value">Rs. {Number(vehicle.pricePerDay || 0).toLocaleString()} / day</p>
                         <p className="vehicle-vendor">Listed by {vehicle.vendor?.name || 'NepRide Vendor'}</p>
                       </div>
 

@@ -96,9 +96,11 @@ const BookingConfirmed = () => {
                         <p style={{ margin: '0.3rem 0' }}>Customer: {booking.customer?.name || 'Customer'}</p>
                         <p style={{ margin: '0.3rem 0' }}>Status: {booking.status}</p>
                         <p style={{ margin: '0.3rem 0' }}>Payment: {booking.paymentStatus}</p>
+                        <p style={{ margin: '0.3rem 0' }}>Price: Rs. {Number(booking.vehicle?.pricePerDay || 0).toLocaleString()} / day</p>
                         <p style={{ margin: '0.3rem 0' }}>Start: {formatDateTime(booking.startDate)}</p>
                         <p style={{ margin: '0.3rem 0' }}>End: {formatDateTime(booking.endDate)}</p>
                         <p style={{ margin: '0.3rem 0' }}>Duration: {durationLabel}</p>
+                        <p style={{ margin: '0.3rem 0' }}>Days: {Number(booking.totalDays || 0) || '--'}</p>
                         <p style={{ margin: '0.3rem 0', color: '#DBB33B', fontWeight: 700, fontSize: '1.12rem' }}>
                             Total Paid: Rs. {Number(booking.totalPrice || 0).toLocaleString()}
                         </p>

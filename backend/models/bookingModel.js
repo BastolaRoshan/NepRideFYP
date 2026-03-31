@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
 
+const DAY_IN_MS = 1000 * 60 * 60 * 24;
+
 const bookingSchema = new mongoose.Schema({
     customer: {
         type: mongoose.Schema.Types.ObjectId,
@@ -18,6 +20,18 @@ const bookingSchema = new mongoose.Schema({
     endDate: {
         type: Date,
         required: true,
+        validate: {
+            validator(value) {
+                if (!this.startDate || !value) return true;
+                return new Date(value).getTime() > new Date(this.startDate).getTime();
+            },
+            message: 'End date must be after start date.',
+        },
+    },
+    totalDays: {
+        type: Number,
+        required: true,
+        min: 1,
     },
     status: {
         type: String,
@@ -52,6 +66,23 @@ const bookingSchema = new mongoose.Schema({
         default: '',
     },
 }, { timestamps: true });
+
+bookingSchema.pre('validate', function syncTotalDays() {
+    if (Number(this.totalDays) >= 1) {
+        this.totalDays = Number(this.totalDays);
+        return;
+    }
+
+    if (!this.startDate || !this.endDate) return;
+
+    const start = new Date(this.startDate).getTime();
+    const end = new Date(this.endDate).getTime();
+    const diffMs = end - start;
+
+    if (diffMs > 0) {
+        this.totalDays = Math.ceil(diffMs / DAY_IN_MS);
+    }
+});
 
 const bookingModel = mongoose.models.booking || mongoose.model('booking', bookingSchema);
 

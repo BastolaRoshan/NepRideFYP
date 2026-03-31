@@ -323,7 +323,7 @@ const VendorDashboard = () => {
                                                     <div>
                                                         <p style={{ color: '#888', fontSize: '0.75rem' }}>Price per day</p>
                                                         <p style={{ color: '#d4af37', fontSize: '1.25rem', fontWeight: '700' }}>
-                                                            Rs. {vehicle.pricePerDay}
+                                                            Rs. {Number(vehicle.pricePerDay || 0).toLocaleString()} / day
                                                         </p>
                                                     </div>
                                                     <div style={{ textAlign: 'right' }}>
@@ -415,8 +415,11 @@ const VendorDashboard = () => {
                                             From: {new Date(booking.startDate).toLocaleDateString()} —
                                             To: {new Date(booking.endDate).toLocaleDateString()}
                                         </p>
+                                        <p style={{ color: '#a0a0a0', fontSize: '0.875rem', margin: '0.25rem 0' }}>
+                                            Days: {Number(booking.totalDays || 0) || '--'}
+                                        </p>
                                         <p style={{ color: '#d4af37', fontWeight: '600', margin: '0.5rem 0 0' }}>
-                                            Total: Rs. {booking.totalPrice}
+                                            Total: Rs. {Number(booking.totalPrice || 0).toLocaleString()}
                                         </p>
                                     </div>
                                 ))}

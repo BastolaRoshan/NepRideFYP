@@ -7,6 +7,8 @@ import {
   syncUserVerificationState,
 } from "../utils/verification.js";
 
+const DAY_IN_MS = 1000 * 60 * 60 * 24;
+
 const normalizePaymentStatus = (value) => {
   const normalized = String(value || "").trim().toLowerCase();
 
@@ -61,6 +63,15 @@ const toVehicleResponse = (vehicleDoc) => {
     seatCapacity: vehicle.seatCapacity ?? vehicle.seats,
     vendorName: vehicle.vendor?.name || "",
   };
+};
+
+const calculateTotalDays = (startDate, endDate) => {
+  const start = new Date(startDate).getTime();
+  const end = new Date(endDate).getTime();
+  const diffMs = end - start;
+
+  if (!Number.isFinite(start) || !Number.isFinite(end) || diffMs <= 0) return 0;
+  return Math.ceil(diffMs / DAY_IN_MS);
 };
 
 export const getAdminSummary = async (req, res) => {
@@ -234,13 +245,16 @@ export const getAdminPayments = async (req, res) => {
       .populate("customer", "name email phone")
       .populate({
         path: "vehicle",
-        select: "title name vendor",
+        select: "title name vendor pricePerDay",
         populate: { path: "vendor", select: "name email" },
       });
 
     const payments = bookings.map((booking) => {
       const paymentStatus = normalizePaymentStatus(booking.paymentStatus) || "Unpaid";
       const vehicleTitle = booking.vehicle?.title || booking.vehicle?.name || "Unknown Vehicle";
+      const totalDays = Number(booking.totalDays) > 0
+        ? Number(booking.totalDays)
+        : calculateTotalDays(booking.startDate, booking.endDate);
 
       return {
         _id: booking._id,
@@ -249,12 +263,14 @@ export const getAdminPayments = async (req, res) => {
         paymentStatus,
         paymentMethod: booking.paymentMethod || "",
         amount: booking.totalPrice,
+        totalDays,
         startDate: booking.startDate,
         endDate: booking.endDate,
         customer: booking.customer,
         vehicle: {
           _id: booking.vehicle?._id,
           title: vehicleTitle,
+          pricePerDay: booking.vehicle?.pricePerDay || 0,
           vendor: booking.vehicle?.vendor || null,
         },
       };

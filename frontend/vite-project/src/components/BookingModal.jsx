@@ -57,11 +57,15 @@ const BookingModal = ({ vehicle, onClose, onBookingCreated }) => {
         return '';
     }, [startDateTime, endDateTime, durationMs]);
 
+    const totalDays = useMemo(() => {
+        if (!startDateTime || !endDateTime || durationMs <= 0) return 0;
+        return Math.ceil(durationMs / (1000 * 60 * 60 * 24));
+    }, [durationMs, endDateTime, startDateTime]);
+
     const totalPrice = useMemo(() => {
         if (!startDateTime || !endDateTime || durationMs <= 0) return 0;
-        const days = Math.ceil(durationMs / (1000 * 60 * 60 * 24)) || 1;
-        return days * Number(vehicle?.pricePerDay || 0);
-    }, [durationMs, endDateTime, startDateTime, vehicle?.pricePerDay]);
+        return totalDays * Number(vehicle?.pricePerDay || 0);
+    }, [durationMs, endDateTime, startDateTime, totalDays, vehicle?.pricePerDay]);
 
     const durationLabel = useMemo(() => {
         if (!startDateTime || !endDateTime || durationMs <= 0) return '--';
@@ -489,11 +493,19 @@ const BookingModal = ({ vehicle, onClose, onBookingCreated }) => {
 
                 <div style={{ border: '1px solid #2f2f2f', borderRadius: '10px', padding: '0.9rem', marginBottom: '1rem', backgroundColor: '#101010' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#d1d1d1' }}>
+                        <span>Price</span>
+                        <strong>Rs. {pricePerDay.toLocaleString()} / day</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#d1d1d1' }}>
+                        <span>Days</span>
+                        <strong>{totalDays || '--'}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#d1d1d1' }}>
                         <span>Duration</span>
                         <strong>{durationLabel}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#DBB33B' }}>
-                        <span>Total Cost</span>
+                        <span>Total Price (Pending Payment)</span>
                         <strong>Rs. {totalPrice.toLocaleString()}</strong>
                     </div>
                 </div>

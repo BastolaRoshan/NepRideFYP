@@ -55,6 +55,30 @@ const canAccessBooking = async (booking, user) => {
     return String(vehicle.vendor) === String(user._id);
 };
 
+const calculateTotalDays = (startDate, endDate) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return 0;
+    }
+
+    const diffMs = end.getTime() - start.getTime();
+    if (diffMs <= 0) return 0;
+
+    return Math.ceil(diffMs / DAY_IN_MS);
+};
+
+const mapBookingWithComputedFields = (bookingDoc) => {
+    const booking = bookingDoc?.toObject ? bookingDoc.toObject() : bookingDoc;
+    const computedDays = calculateTotalDays(booking.startDate, booking.endDate);
+
+    return {
+        ...booking,
+        totalDays: Number(booking.totalDays) > 0 ? booking.totalDays : computedDays,
+    };
+};
+
 export const createBooking = async (req, res) => {
     try {
         const { vehicleId, startDate, endDate } = req.body;
@@ -92,10 +116,13 @@ export const createBooking = async (req, res) => {
             });
         }
 
-        const diffTime = end - start;
-        const diffDays = Math.ceil(diffTime / DAY_IN_MS) || 1;
+        const totalDays = calculateTotalDays(start, end);
 
-        const totalPrice = diffDays * vehicle.pricePerDay;
+        if (totalDays < 1) {
+            return res.json({ success: false, message: 'Minimum booking duration is 1 day.' });
+        }
+
+        const totalPrice = totalDays * vehicle.pricePerDay;
         const expiresAt = new Date(Date.now() + PAYMENT_WINDOW_MS);
 
         const booking = new bookingModel({
@@ -103,6 +130,7 @@ export const createBooking = async (req, res) => {
             vehicle: vehicleId,
             startDate: start,
             endDate: end,
+            totalDays,
             status: 'pending_payment',
             totalPrice,
             expiresAt,
@@ -113,7 +141,7 @@ export const createBooking = async (req, res) => {
         res.json({
             success: true,
             message: "Booking created successfully",
-            booking,
+            booking: mapBookingWithComputedFields(booking),
         });
     } catch (error) {
         res.json({ success: false, message: error.message });
@@ -125,7 +153,11 @@ export const getCustomerBookings = async (req, res) => {
         const bookings = await bookingModel
             .find({ customer: req.user._id })
             .populate("vehicle");
-        res.json({ success: true, count: bookings.length, bookings });
+        res.json({
+            success: true,
+            count: bookings.length,
+            bookings: bookings.map(mapBookingWithComputedFields),
+        });
     } catch (error) {
         res.json({ success: false, message: error.message });
     }
@@ -143,7 +175,11 @@ export const getVendorBookings = async (req, res) => {
             .populate("vehicle")
             .populate("customer", "name email phone");
 
-        res.json({ success: true, count: bookings.length, bookings });
+        res.json({
+            success: true,
+            count: bookings.length,
+            bookings: bookings.map(mapBookingWithComputedFields),
+        });
     } catch (error) {
         res.json({ success: false, message: error.message });
     }
@@ -196,7 +232,7 @@ export const updateBookingStatus = async (req, res) => {
 
         await booking.save();
 
-        res.json({ success: true, message: "Booking status updated", booking });
+        res.json({ success: true, message: "Booking status updated", booking: mapBookingWithComputedFields(booking) });
     } catch (error) {
         res.json({ success: false, message: error.message });
     }
@@ -218,7 +254,7 @@ export const getBookingById = async (req, res) => {
             return res.json({ success: false, message: 'Not authorized to view this booking' });
         }
 
-        return res.json({ success: true, booking });
+        return res.json({ success: true, booking: mapBookingWithComputedFields(booking) });
     } catch (error) {
         return res.json({ success: false, message: error.message });
     }
@@ -242,7 +278,7 @@ export const confirmBookingPayment = async (req, res) => {
         }
 
         if (booking.status === 'confirmed') {
-            return res.json({ success: true, message: 'Booking already confirmed', booking });
+            return res.json({ success: true, message: 'Booking already confirmed', booking: mapBookingWithComputedFields(booking) });
         }
 
         if (booking.expiresAt && booking.expiresAt.getTime() < Date.now()) {
@@ -251,7 +287,7 @@ export const confirmBookingPayment = async (req, res) => {
             booking.cancellationReason = 'Payment session expired';
             booking.expiresAt = null;
             await booking.save();
-            return res.json({ success: false, message: 'Booking payment window has expired', booking });
+            return res.json({ success: false, message: 'Booking payment window has expired', booking: mapBookingWithComputedFields(booking) });
         }
 
         const overlappingBooking = await findOverlappingActiveBooking({
@@ -275,7 +311,7 @@ export const confirmBookingPayment = async (req, res) => {
 
         await booking.save();
 
-        return res.json({ success: true, message: 'Booking confirmed successfully', booking });
+        return res.json({ success: true, message: 'Booking confirmed successfully', booking: mapBookingWithComputedFields(booking) });
     } catch (error) {
         return res.json({ success: false, message: error.message });
     }
@@ -297,7 +333,7 @@ export const cancelBooking = async (req, res) => {
         }
 
         if (booking.status === 'cancelled') {
-            return res.json({ success: true, message: 'Booking already cancelled', booking });
+            return res.json({ success: true, message: 'Booking already cancelled', booking: mapBookingWithComputedFields(booking) });
         }
 
         booking.status = 'cancelled';
@@ -307,7 +343,7 @@ export const cancelBooking = async (req, res) => {
 
         await booking.save();
 
-        return res.json({ success: true, message: 'Booking cancelled successfully', booking });
+        return res.json({ success: true, message: 'Booking cancelled successfully', booking: mapBookingWithComputedFields(booking) });
     } catch (error) {
         return res.json({ success: false, message: error.message });
     }

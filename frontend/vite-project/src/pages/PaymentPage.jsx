@@ -225,6 +225,9 @@ const PaymentPage = () => {
 
                 {booking && (
                     <div style={{ border: '1px solid #2f2f2f', borderRadius: '12px', padding: '1rem', backgroundColor: '#101010' }}>
+                        <p style={{ margin: '0.25rem 0', color: '#c9c9c9' }}>
+                            Price: Rs. {Number(booking.vehicle?.pricePerDay || 0).toLocaleString()} / day
+                        </p>
                         <p style={{ margin: '0 0 0.5rem', fontWeight: 600, fontSize: '1.1rem' }}>
                             {booking.vehicle?.title || booking.vehicle?.name || 'Vehicle'}
                         </p>
@@ -232,8 +235,9 @@ const PaymentPage = () => {
                         <p style={{ margin: '0.25rem 0', color: '#c9c9c9' }}>From: {formatDateTime(booking.startDate)}</p>
                         <p style={{ margin: '0.25rem 0', color: '#c9c9c9' }}>To: {formatDateTime(booking.endDate)}</p>
                         <p style={{ margin: '0.25rem 0', color: '#c9c9c9' }}>Duration: {durationLabel}</p>
+                        <p style={{ margin: '0.25rem 0', color: '#c9c9c9' }}>Days: {Number(booking.totalDays || 0) || '--'}</p>
                         <p style={{ margin: '0.25rem 0', color: '#DBB33B', fontWeight: 700, fontSize: '1.15rem' }}>
-                            Total: Rs. {Number(booking.totalPrice || 0).toLocaleString()}
+                            Pending Payment: Rs. {Number(booking.totalPrice || 0).toLocaleString()}
                         </p>
                     </div>
                 )}

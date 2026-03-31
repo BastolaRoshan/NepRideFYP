@@ -316,7 +316,7 @@ const CustomerDashboard = () => {
                                                     <div>
                                                         <p style={{ fontSize: '0.85rem', color: '#a0a0a0' }}>Price per day</p>
                                                         <p style={{ fontSize: '1.5rem', fontWeight: '600', color: '#fff' }}>
-                                                            Rs. {vehicle.pricePerDay}
+                                                            Rs. {Number(vehicle.pricePerDay || 0).toLocaleString()} / day
                                                         </p>
                                                         <p style={{ fontSize: '0.8rem', color: '#DBB33B', marginTop: '0.3rem' }}>
                                                             Listed by {vehicle.vendor?.name || vehicle.vendorName || 'NepRide Vendor'}
@@ -391,6 +391,7 @@ const CustomerDashboard = () => {
                                             : normalizedStatus === 'completed'
                                                 ? 'Completed'
                                                 : booking.status || 'Pending';
+                                const totalDays = Number(booking.totalDays || 0);
 
                                 const badgeBackground = normalizedStatus === 'confirmed'
                                     ? '#16a34a33'
@@ -438,8 +439,11 @@ const CustomerDashboard = () => {
                                         <p style={{ color: '#a0a0a0', fontSize: '0.875rem', margin: '0.25rem 0' }}>
                                             From: {new Date(booking.startDate).toLocaleString([], { hour12: false })} — To: {new Date(booking.endDate).toLocaleString([], { hour12: false })}
                                         </p>
+                                        <p style={{ color: '#a0a0a0', fontSize: '0.875rem', margin: '0.25rem 0' }}>
+                                            Days: {totalDays || '--'}
+                                        </p>
                                         <p style={{ color: '#d4af37', fontWeight: '600', margin: '0.4rem 0 0' }}>
-                                            Total: Rs. {booking.totalPrice}
+                                            Total: Rs. {Number(booking.totalPrice || 0).toLocaleString()}
                                         </p>
 
                                         {isPendingPayment && (
