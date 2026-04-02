@@ -29,7 +29,8 @@ const combineDateAndTime = (date, time) => {
     );
 };
 
-const BookingModal = ({ vehicle, onClose, onBookingCreated }) => {
+const BookingModal = ({ vehicle, onClose, onBookingCreated, isServiceAccessAllowed = true }) => {
+    const serviceLockMessage = 'Services are locked until your account is verified by admin.';
     const today = useMemo(() => toStartOfDay(new Date()), []);
     const initialMonth = useMemo(() => new Date(today.getFullYear(), today.getMonth(), 1), [today]);
 
@@ -84,6 +85,7 @@ const BookingModal = ({ vehicle, onClose, onBookingCreated }) => {
     }, [durationMs, endDateTime, startDateTime]);
 
     const isFormValid = Boolean(startDateTime && endDateTime && !validationError);
+    const isServiceLocked = !isServiceAccessAllowed;
 
     const startOfMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
     const endOfMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0);
@@ -233,6 +235,15 @@ const BookingModal = ({ vehicle, onClose, onBookingCreated }) => {
                     {vehicleTitle} — Rs. {pricePerDay.toLocaleString()}/day
                 </p>
 
+                {isServiceLocked && (
+                    <div style={{ marginBottom: '1rem', border: '1px solid #3a3524', backgroundColor: '#171717', borderRadius: '10px', padding: '0.85rem' }}>
+                        <p style={{ margin: 0, color: '#DBB33B', fontWeight: 700 }}>{serviceLockMessage}</p>
+                        <p style={{ margin: '0.35rem 0 0', color: '#bdbdbd', fontSize: '0.92rem' }}>
+                            You can view the booking form, but submission is disabled until admin approval.
+                        </p>
+                    </div>
+                )}
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                     <div style={{ position: 'relative' }}>
                         <label style={{ display: 'block', color: '#c9c9c9', marginBottom: '0.4rem', fontWeight: 600 }}>Start Date</label>
@@ -259,7 +270,7 @@ const BookingModal = ({ vehicle, onClose, onBookingCreated }) => {
                     </div>
 
                     <div style={{ position: 'relative' }}>
-                        <label style={{ display: 'block', color: '#c9c9c9', marginBottom: '0.4rem', fontWeight: 600 }}>Start Time</label>
+                        disabled={!isFormValid || bookingLoading || isServiceLocked}
                         <button
                             onClick={() => handleOpenTimePicker('start')}
                             type="button"
@@ -267,9 +278,9 @@ const BookingModal = ({ vehicle, onClose, onBookingCreated }) => {
                                 width: '100%',
                                 textAlign: 'left',
                                 padding: '0.9rem 1rem',
-                                borderRadius: '10px',
+                            backgroundColor: !isFormValid || bookingLoading || isServiceLocked ? '#6a5a28' : '#DBB33B',
                                 border: '1px solid #3a3a3a',
-                                backgroundColor: '#0d0d0d',
+                            cursor: !isFormValid || bookingLoading || isServiceLocked ? 'not-allowed' : 'pointer',
                                 color: '#fff',
                                 display: 'flex',
                                 justifyContent: 'space-between',

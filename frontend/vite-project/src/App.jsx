@@ -61,7 +61,7 @@ function App() {
         <Route
           path="/customer-dashboard"
           element={
-            <ProtectedRoute allowedRoles={['Customer', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Customer', 'Admin']} requireServiceAccess={false}>
               <CustomerDashboard />
             </ProtectedRoute>
           }
@@ -70,7 +70,7 @@ function App() {
         <Route
           path="/payment/:bookingId"
           element={
-            <ProtectedRoute allowedRoles={['Customer', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Customer', 'Admin']} requireServiceAccess={false}>
               <PaymentPage />
             </ProtectedRoute>
           }
@@ -79,7 +79,7 @@ function App() {
         <Route
           path="/booking-confirmed/:bookingId"
           element={
-            <ProtectedRoute allowedRoles={['Customer', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Customer', 'Admin']} requireServiceAccess={false}>
               <BookingConfirmed />
             </ProtectedRoute>
           }

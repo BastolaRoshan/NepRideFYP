@@ -40,10 +40,18 @@ const PaymentPage = () => {
     const [booking, setBooking] = useState(null);
     const [loading, setLoading] = useState(true);
     const [pageMessage, setPageMessage] = useState('');
+    const [verificationStatus, setVerificationStatus] = useState(localStorage.getItem('verificationStatus') || 'NotSubmitted');
+    const [serviceAccessAllowed, setServiceAccessAllowed] = useState(localStorage.getItem('isServiceAccessAllowed') === 'true');
     const [remainingSeconds, setRemainingSeconds] = useState(0);
     const [paymentLoading, setPaymentLoading] = useState(false);
     const [cancelled, setCancelled] = useState(false);
     const hasHandledExpiryRef = useRef(false);
+
+    const normalizeVerificationStatus = (status) => {
+        if (status === 'UnderReview') return 'Under Review';
+        if (status === 'NotSubmitted') return 'Not Submitted';
+        return status || 'Not Submitted';
+    };
 
     const fetchBooking = useCallback(async () => {
         try {
@@ -68,6 +76,33 @@ const PaymentPage = () => {
     useEffect(() => {
         fetchBooking();
     }, [fetchBooking]);
+
+    useEffect(() => {
+        const fetchVerificationState = async () => {
+            try {
+                const response = await fetch('/api/user/verification-status', {
+                    method: 'GET',
+                    credentials: 'include',
+                });
+
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    return;
+                }
+
+                const nextStatus = data?.verification?.verificationStatus || 'NotSubmitted';
+                const nextAccessAllowed = Boolean(data?.verification?.isServiceAccessAllowed);
+                setVerificationStatus(nextStatus);
+                setServiceAccessAllowed(nextAccessAllowed);
+                localStorage.setItem('verificationStatus', nextStatus);
+                localStorage.setItem('isServiceAccessAllowed', nextAccessAllowed ? 'true' : 'false');
+            } catch {
+                // keep local fallback if verification fetch fails
+            }
+        };
+
+        fetchVerificationState();
+    }, []);
 
     const handleAutoCancel = useCallback(async () => {
         if (hasHandledExpiryRef.current) return;
@@ -159,6 +194,11 @@ const PaymentPage = () => {
     }, [booking]);
 
     const handlePayNow = async () => {
+        if (!serviceAccessAllowed) {
+            setPageMessage('Services are locked until your account is verified by admin.');
+            return;
+        }
+
         try {
             setPaymentLoading(true);
             setPageMessage('');
@@ -184,6 +224,11 @@ const PaymentPage = () => {
     };
 
     const handleManualCancel = async () => {
+        if (!serviceAccessAllowed) {
+            setPageMessage('Services are locked until your account is verified by admin.');
+            return;
+        }
+
         try {
             setPaymentLoading(true);
             const response = await fetch(`/api/bookings/${bookingId}/cancel`, {
@@ -242,6 +287,15 @@ const PaymentPage = () => {
                     </div>
                 )}
 
+                {!serviceAccessAllowed && (
+                    <div style={{ marginTop: '1rem', border: '1px solid #3a3524', backgroundColor: '#171717', borderRadius: '10px', padding: '0.9rem' }}>
+                        <p style={{ margin: 0, color: '#DBB33B', fontWeight: 700 }}>Services are locked until your account is verified by admin.</p>
+                        <p style={{ margin: '0.35rem 0 0', color: '#bdbdbd' }}>
+                            Current status: {normalizeVerificationStatus(verificationStatus)}
+                        </p>
+                    </div>
+                )}
+
                 <div style={{ marginTop: '1.25rem', border: '1px solid rgba(219,179,59,0.4)', background: 'rgba(219,179,59,0.1)', borderRadius: '10px', padding: '0.9rem' }}>
                     <p style={{ margin: 0, color: '#DBB33B', fontWeight: 700, fontSize: '1.2rem' }}>
                         Time Left: {formatTimer(remainingSeconds)}
@@ -258,7 +312,7 @@ const PaymentPage = () => {
                     <button
                         type="button"
                         onClick={handlePayNow}
-                        disabled={paymentLoading || cancelled || booking?.status !== 'pending_payment'}
+                        disabled={paymentLoading || cancelled || booking?.status !== 'pending_payment' || !serviceAccessAllowed}
                         style={{
                             flex: 1,
                             minWidth: '180px',
@@ -267,9 +321,9 @@ const PaymentPage = () => {
                             padding: '0.85rem 1rem',
                             fontSize: '1rem',
                             fontWeight: 700,
-                            backgroundColor: paymentLoading || cancelled || booking?.status !== 'pending_payment' ? '#655c42' : '#DBB33B',
+                            backgroundColor: paymentLoading || cancelled || booking?.status !== 'pending_payment' || !serviceAccessAllowed ? '#655c42' : '#DBB33B',
                             color: '#111',
-                            cursor: paymentLoading || cancelled || booking?.status !== 'pending_payment' ? 'not-allowed' : 'pointer',
+                            cursor: paymentLoading || cancelled || booking?.status !== 'pending_payment' || !serviceAccessAllowed ? 'not-allowed' : 'pointer',
                         }}
                     >
                         {paymentLoading ? 'Processing...' : 'Pay Now'}
@@ -278,7 +332,7 @@ const PaymentPage = () => {
                     <button
                         type="button"
                         onClick={handleManualCancel}
-                        disabled={paymentLoading || cancelled || booking?.status !== 'pending_payment'}
+                        disabled={paymentLoading || cancelled || booking?.status !== 'pending_payment' || !serviceAccessAllowed}
                         style={{
                             flex: 1,
                             minWidth: '180px',
@@ -289,7 +343,7 @@ const PaymentPage = () => {
                             fontWeight: 600,
                             backgroundColor: 'transparent',
                             color: '#f87171',
-                            cursor: paymentLoading || cancelled || booking?.status !== 'pending_payment' ? 'not-allowed' : 'pointer',
+                            cursor: paymentLoading || cancelled || booking?.status !== 'pending_payment' || !serviceAccessAllowed ? 'not-allowed' : 'pointer',
                         }}
                     >
                         Cancel Booking

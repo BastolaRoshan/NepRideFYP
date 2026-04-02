@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Search, Clock, Users, Gauge, Fuel, ArrowRight, RefreshCcw, BadgeCheck } from 'lucide-react';
+import { LogOut, Search, Clock, Users, Gauge, Fuel, ArrowRight, RefreshCcw, BadgeCheck, Car } from 'lucide-react';
 import '../styles/Home.css';
 import BookingModal from '../components/BookingModal';
 
@@ -14,7 +14,7 @@ const formatCountdown = (remainingSeconds) => {
 const CustomerDashboard = () => {
     const navigate = useNavigate();
     const [vehicles, setVehicles] = useState([]);
-    const [activeView, setActiveView] = useState('vehicles');
+    const [activeView, setActiveView] = useState('dashboard');
     const [searchQuery, setSearchQuery] = useState('');
     const [loadingVehicles, setLoadingVehicles] = useState(true);
     const [vehicleError, setVehicleError] = useState('');
@@ -25,9 +25,13 @@ const CustomerDashboard = () => {
     const [currentTime, setCurrentTime] = useState(Date.now());
     const [bookingActionLoadingId, setBookingActionLoadingId] = useState('');
     const [verificationStatus, setVerificationStatus] = useState(localStorage.getItem('verificationStatus') || 'NotSubmitted');
+    const [serviceAccessAllowed, setServiceAccessAllowed] = useState(localStorage.getItem('isServiceAccessAllowed') === 'true');
+    const [serviceNotice, setServiceNotice] = useState('');
+    const [userName] = useState(localStorage.getItem('userName') || 'Customer');
 
     useEffect(() => {
         fetchVehicles();
+        fetchCustomerBookings();
         fetchVerificationStatus();
     }, []);
 
@@ -50,8 +54,17 @@ const CustomerDashboard = () => {
             }
 
             const nextStatus = data?.verification?.verificationStatus || 'NotSubmitted';
+            const nextAccessAllowed = Boolean(data?.verification?.isServiceAccessAllowed);
             setVerificationStatus(nextStatus);
+            setServiceAccessAllowed(nextAccessAllowed);
             localStorage.setItem('verificationStatus', nextStatus);
+            localStorage.setItem('isServiceAccessAllowed', nextAccessAllowed ? 'true' : 'false');
+
+            if (!nextAccessAllowed) {
+                setServiceNotice('Services are locked until your account is verified by admin.');
+            } else {
+                setServiceNotice('');
+            }
         } catch {
             // keep fallback local state if API request fails
         }
@@ -129,8 +142,53 @@ const CustomerDashboard = () => {
         fetchCustomerBookings();
     };
 
+    const handleSwitchToDashboard = () => {
+        setActiveView('dashboard');
+        fetchCustomerBookings();
+    };
+
+    const calculateBookingStats = () => {
+        const stats = {
+            total: customerBookings.length,
+            active: 0,
+            completed: 0,
+            pending: 0,
+        };
+
+        customerBookings.forEach((booking) => {
+            const normalizedStatus = String(booking.status || '').toLowerCase();
+            if (normalizedStatus === 'completed') {
+                stats.completed += 1;
+            } else if (normalizedStatus === 'cancelled') {
+                // Don't count cancelled bookings in any category
+            } else if (normalizedStatus === 'confirmed') {
+                stats.active += 1;
+            } else if (normalizedStatus === 'pending_payment') {
+                stats.pending += 1;
+            }
+        });
+
+        return stats;
+    };
+
+    const serviceLockMessage = 'Services are locked until your account is verified by admin.';
+
+    const navTabs = [
+        { label: 'Dashboard', view: 'dashboard' },
+        { label: 'Vehicle', view: 'vehicles' },
+        { label: 'My Bookings', view: 'bookings' },
+    ];
+
+    const isVerified = ['verified', 'approved'].includes(String(verificationStatus).toLowerCase());
+    const verificationLabel = normalizeVerificationStatus(verificationStatus);
+    const isServiceLocked = !serviceAccessAllowed;
+
     const handleGoToVerification = () => {
         navigate('/verification');
+    };
+
+    const handleLockedAction = () => {
+        setServiceNotice(serviceLockMessage);
     };
 
     useEffect(() => {
@@ -161,6 +219,11 @@ const CustomerDashboard = () => {
     };
 
     const handleBookNow = (vehicle) => {
+        if (isServiceLocked) {
+            handleLockedAction();
+            return;
+        }
+
         setBookingModal(vehicle);
     };
 
@@ -171,10 +234,20 @@ const CustomerDashboard = () => {
     };
 
     const handleProceedToPayment = (bookingId) => {
+        if (isServiceLocked) {
+            handleLockedAction();
+            return;
+        }
+
         navigate(`/payment/${bookingId}`);
     };
 
     const handleCancelBooking = async (bookingId) => {
+        if (isServiceLocked) {
+            handleLockedAction();
+            return;
+        }
+
         try {
             setBookingActionLoadingId(bookingId);
 
@@ -200,34 +273,215 @@ const CustomerDashboard = () => {
     };
 
     return (
-        <div className="home-container" style={{ minHeight: '100vh', backgroundColor: '#0f0f0f', color: '#ffffff', display: 'block' }}>
-            <header className="home-header" style={{ borderBottom: '1px solid #333' }}>
-                <div className="logo-placeholder">NepRide <span style={{ fontSize: '0.9rem', color: '#fff', marginLeft: '8px', fontWeight: 'normal' }}>Customer Dashboard</span></div>
-                <div style={{ display: 'flex', gap: '1rem' }}>
+        <div className="home-container" style={{ minHeight: '100vh', backgroundColor: '#111111', color: '#ffffff', display: 'block' }}>
+            <header
+                className="home-header"
+                style={{
+                    backgroundColor: '#111111',
+                    borderBottom: '1px solid #D4AF37',
+                    padding: '1rem 1.5rem 0.9rem',
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto 1fr',
+                    alignItems: 'center',
+                    gap: '1rem',
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
+                        <Car size={20} color="#D4AF37" />
+                        <span style={{ color: '#D4AF37', fontSize: '1.5rem', fontWeight: 800, letterSpacing: '0.02em' }}>NepRide</span>
+                    </div>
+                </div>
+
+                <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {navTabs.map((tab) => {
+                        const isActive = activeView === tab.view;
+                        return (
+                            <button
+                                key={tab.view}
+                                type="button"
+                                onClick={
+                                    tab.view === 'dashboard'
+                                        ? handleSwitchToDashboard
+                                        : tab.view === 'vehicles'
+                                            ? handleSwitchToVehicles
+                                            : handleSwitchToBookings
+                                }
+                                style={{
+                                    border: 'none',
+                                    borderRadius: '999px',
+                                    padding: '0.72rem 1.05rem',
+                                    backgroundColor: isActive ? '#D4AF37' : 'transparent',
+                                    color: isActive ? '#111111' : '#d9d9d9',
+                                    fontSize: '0.92rem',
+                                    fontWeight: 700,
+                                    letterSpacing: '0.01em',
+                                    cursor: 'pointer',
+                                    boxShadow: isActive ? 'inset 0 -2px 0 #b38b1d' : 'none',
+                                    transition: 'background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease',
+                                }}
+                            >
+                                {tab.label}
+                            </button>
+                        );
+                    })}
+                </nav>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.85rem', flexWrap: 'wrap' }}>
                     <button
-                        className={activeView === 'vehicles' ? 'btn-primary-accent' : 'btn-secondary-accent'}
-                        onClick={handleSwitchToVehicles}
-                        style={{ padding: '0.5rem 1rem' }}
+                        type="button"
+                        onClick={handleGoToVerification}
+                        style={{
+                            border: '1px solid #3a3524',
+                            backgroundColor: '#171717',
+                            color: '#e5e5e5',
+                            borderRadius: '999px',
+                            padding: '0.48rem 0.85rem',
+                            fontSize: '0.82rem',
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            cursor: 'pointer',
+                        }}
                     >
-                        <Search size={18} /> Listings
+                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '1rem' }} aria-hidden="true">
+                            {isVerified ? '✔️' : ''}
+                        </span>
+                        <span>Profile</span>
+                        {!isVerified && (
+                            <span style={{ color: '#8f8f8f', fontWeight: 600 }}>
+                                {verificationLabel === 'Not Submitted' ? 'Verify' : verificationLabel}
+                            </span>
+                        )}
                     </button>
+
                     <button
-                        className={activeView === 'bookings' ? 'btn-primary-accent' : 'btn-secondary-accent'}
-                        onClick={handleSwitchToBookings}
-                        style={{ padding: '0.5rem 1rem' }}
+                        type="button"
+                        onClick={handleLogout}
+                        style={{
+                            border: '1px solid #4a1f1f',
+                            backgroundColor: 'transparent',
+                            color: '#f0b2b2',
+                            borderRadius: '999px',
+                            padding: '0.48rem 0.85rem',
+                            fontSize: '0.82rem',
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.42rem',
+                            cursor: 'pointer',
+                        }}
                     >
-                        <Clock size={18} /> My Bookings
-                    </button>
-                    <button className="btn-secondary-accent" onClick={handleGoToVerification} style={{ padding: '0.5rem 1rem' }}>
-                        <BadgeCheck size={18} /> Verify Account - {normalizeVerificationStatus(verificationStatus)}
-                    </button>
-                    <button className="btn-logout" onClick={handleLogout}>
-                        <LogOut size={18} /> Logout
+                        <LogOut size={15} />
+                        Logout
                     </button>
                 </div>
             </header>
 
-            {activeView === 'vehicles' ? (
+            {isServiceLocked && (
+                <section style={{ margin: '1rem 1.5rem 0', border: '1px solid #3a3524', backgroundColor: '#171717', color: '#e5e5e5', borderRadius: '12px', padding: '0.9rem 1rem' }}>
+                    <strong style={{ color: '#D4AF37' }}>Service Access Locked.</strong>
+                    <span style={{ marginLeft: '0.5rem' }}>{serviceNotice || serviceLockMessage}</span>
+                    <span style={{ marginLeft: '0.65rem', color: '#9a9a9a' }}>Current status: {verificationLabel}.</span>
+                </section>
+            )}
+
+            {activeView === 'dashboard' ? (
+                <>
+                    <section className="hero-section" style={{ padding: '4rem 2rem 2rem' }}>
+                        <h1 className="hero-title" style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>
+                            Welcome back, <span className="text-accent">{userName}</span>!
+                        </h1>
+                        <p style={{ fontSize: '1rem', color: '#a0a0a0', marginBottom: '2rem' }}>
+                            Here's your rental activity summary
+                        </p>
+                    </section>
+
+                    <section className="fleet-section">
+                        <div className="fleet-header">
+                            <div className="fleet-title-container">
+                                <h2 className="fleet-title">
+                                    Dashboard <span className="text-accent">Overview</span>
+                                </h2>
+                            </div>
+                        </div>
+
+                        {loadingBookings ? (
+                            <div style={{ padding: '3rem', border: '1px dashed #333', borderRadius: '8px', textAlign: 'center', color: '#a0a0a0' }}>
+                                <p>Loading your dashboard...</p>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+                                {(() => {
+                                    const stats = calculateBookingStats();
+                                    return [
+                                        { label: 'Total Bookings', value: stats.total, color: '#DBB33B', icon: Clock },
+                                        { label: 'Active Bookings', value: stats.active, color: '#4ade80', icon: Gauge },
+                                        { label: 'Pending Payment', value: stats.pending, color: '#f97316', icon: Users },
+                                        { label: 'Completed', value: stats.completed, color: '#60a5fa', icon: Users },
+                                    ].map((stat, index) => {
+                                        const IconComponent = stat.icon;
+                                        return (
+                                            <div
+                                                key={index}
+                                                style={{
+                                                    backgroundColor: '#000',
+                                                    border: '1px solid #333',
+                                                    borderRadius: '12px',
+                                                    padding: '1.5rem',
+                                                    textAlign: 'center',
+                                                    transition: 'all 0.3s ease',
+                                                    cursor: 'pointer',
+                                                    ':hover': {
+                                                        borderColor: stat.color,
+                                                        transform: 'translateY(-4px)',
+                                                    }
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.borderColor = stat.color;
+                                                    e.currentTarget.style.transform = 'translateY(-4px)';
+                                                    e.currentTarget.style.boxShadow = `0 0 20px ${stat.color}33`;
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.borderColor = '#333';
+                                                    e.currentTarget.style.transform = 'translateY(0)';
+                                                    e.currentTarget.style.boxShadow = 'none';
+                                                }}
+                                            >
+                                                <IconComponent size={28} style={{ color: stat.color, marginBottom: '0.75rem' }} />
+                                                <p style={{ fontSize: '0.85rem', color: '#a0a0a0', margin: '0.5rem 0 0.75rem 0' }}>
+                                                    {stat.label}
+                                                </p>
+                                                <p style={{ fontSize: '2.5rem', fontWeight: '700', color: stat.color, margin: '0' }}>
+                                                    {stat.value}
+                                                </p>
+                                            </div>
+                                        );
+                                    });
+                                    })()}
+                            </div>
+                        )}
+
+                        <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                            <button
+                                className="btn-primary-accent"
+                                onClick={() => setActiveView('vehicles')}
+                                style={{ padding: '0.75rem 1.5rem' }}
+                            >
+                                <Search size={16} /> Browse Vehicles
+                            </button>
+                            <button
+                                className="btn-secondary-accent"
+                                onClick={() => setActiveView('bookings')}
+                                style={{ padding: '0.75rem 1.5rem' }}
+                            >
+                                <Clock size={16} /> View My Bookings
+                            </button>
+                        </div>
+                    </section>
+                </>
+            ) : activeView === 'vehicles' ? (
                 <>
                     <section className="hero-section" style={{ padding: '4rem 2rem 2rem' }}>
                         <h1 className="hero-title" style={{ fontSize: '3rem', marginBottom: '1.5rem' }}>
@@ -327,7 +581,14 @@ const CustomerDashboard = () => {
                                                 <button
                                                     className="btn-reserve"
                                                     onClick={() => handleBookNow(vehicle)}
-                                                    style={{ marginTop: '1rem', width: '100%' }}
+                                                    disabled={isServiceLocked}
+                                                    style={{
+                                                        marginTop: '1rem',
+                                                        width: '100%',
+                                                        backgroundColor: isServiceLocked ? '#554616' : undefined,
+                                                        cursor: isServiceLocked ? 'not-allowed' : 'pointer',
+                                                        opacity: isServiceLocked ? 0.75 : 1,
+                                                    }}
                                                 >
                                                     Reserve Now <ArrowRight size={16} />
                                                 </button>
@@ -458,15 +719,15 @@ const CustomerDashboard = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => handleProceedToPayment(booking._id)}
-                                                        disabled={isExpired || bookingActionLoadingId === booking._id}
+                                                        disabled={isExpired || bookingActionLoadingId === booking._id || isServiceLocked}
                                                         style={{
                                                             border: 'none',
                                                             borderRadius: '8px',
                                                             padding: '0.55rem 0.85rem',
                                                             fontWeight: 700,
-                                                            backgroundColor: isExpired || bookingActionLoadingId === booking._id ? '#655c42' : '#DBB33B',
+                                                            backgroundColor: isExpired || bookingActionLoadingId === booking._id || isServiceLocked ? '#655c42' : '#DBB33B',
                                                             color: '#111',
-                                                            cursor: isExpired || bookingActionLoadingId === booking._id ? 'not-allowed' : 'pointer',
+                                                            cursor: isExpired || bookingActionLoadingId === booking._id || isServiceLocked ? 'not-allowed' : 'pointer',
                                                         }}
                                                     >
                                                         Pay Now
@@ -475,7 +736,7 @@ const CustomerDashboard = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => handleCancelBooking(booking._id)}
-                                                        disabled={bookingActionLoadingId === booking._id}
+                                                        disabled={bookingActionLoadingId === booking._id || isServiceLocked}
                                                         style={{
                                                             border: '1px solid #f87171',
                                                             borderRadius: '8px',
@@ -483,7 +744,7 @@ const CustomerDashboard = () => {
                                                             fontWeight: 600,
                                                             backgroundColor: 'transparent',
                                                             color: '#f87171',
-                                                            cursor: bookingActionLoadingId === booking._id ? 'not-allowed' : 'pointer',
+                                                            cursor: bookingActionLoadingId === booking._id || isServiceLocked ? 'not-allowed' : 'pointer',
                                                         }}
                                                     >
                                                         {bookingActionLoadingId === booking._id ? 'Cancelling...' : 'Cancel Booking'}
@@ -497,7 +758,7 @@ const CustomerDashboard = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => handleCancelBooking(booking._id)}
-                                                    disabled={bookingActionLoadingId === booking._id}
+                                                    disabled={bookingActionLoadingId === booking._id || isServiceLocked}
                                                     style={{
                                                         border: '1px solid #f87171',
                                                         borderRadius: '8px',
@@ -505,12 +766,18 @@ const CustomerDashboard = () => {
                                                         fontWeight: 600,
                                                         backgroundColor: 'transparent',
                                                         color: '#f87171',
-                                                        cursor: bookingActionLoadingId === booking._id ? 'not-allowed' : 'pointer',
+                                                        cursor: bookingActionLoadingId === booking._id || isServiceLocked ? 'not-allowed' : 'pointer',
                                                     }}
                                                 >
                                                     {bookingActionLoadingId === booking._id ? 'Cancelling...' : 'Cancel Booking'}
                                                 </button>
                                             </div>
+                                        )}
+
+                                        {isServiceLocked && (
+                                            <p style={{ marginTop: '0.75rem', color: '#fbbf24', fontSize: '0.88rem' }}>
+                                                {serviceLockMessage}
+                                            </p>
                                         )}
                                     </div>
                                 );

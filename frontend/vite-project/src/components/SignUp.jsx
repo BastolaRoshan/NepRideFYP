@@ -70,7 +70,13 @@ const SignUp = () => {
                 localStorage.setItem('isServiceAccessAllowed', 'false');
                 localStorage.setItem('verificationStatus', verificationStatus);
 
-                navigate('/', { replace: true });
+                if (role === 'admin') {
+                    navigate('/admin-dashboard', { replace: true });
+                } else if (role === 'vendor') {
+                    navigate('/vendor-dashboard', { replace: true });
+                } else {
+                    navigate('/customer-dashboard', { replace: true });
+                }
             } else {
                 setError(data.message || 'Registration failed');
             }
