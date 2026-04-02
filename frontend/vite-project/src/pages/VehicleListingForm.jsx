@@ -32,6 +32,16 @@ const VehicleListingForm = () => {
     message: '',
     isError: false,
   });
+  const [verificationStatus, setVerificationStatus] = useState(localStorage.getItem('verificationStatus') || 'NotSubmitted');
+  const [serviceAccessAllowed, setServiceAccessAllowed] = useState(localStorage.getItem('isServiceAccessAllowed') === 'true');
+
+  const serviceLockMessage = 'Services are locked until admin approval.';
+
+  const normalizeVerificationStatus = (status) => {
+    if (status === 'UnderReview') return 'Under Review';
+    if (status === 'NotSubmitted') return 'Not Submitted';
+    return status || 'Not Submitted';
+  };
 
   useEffect(() => {
     if (!isEditMode) {
@@ -53,6 +63,33 @@ const VehicleListingForm = () => {
     setErrors({});
     setSubmitState({ loading: false, message: '', isError: false });
   }, [editVehicle, isEditMode]);
+
+  useEffect(() => {
+    const fetchVerificationStatus = async () => {
+      try {
+        const response = await fetch('/api/user/verification-status', {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          return;
+        }
+
+        const nextStatus = data?.verification?.verificationStatus || 'NotSubmitted';
+        const nextAccessAllowed = Boolean(data?.verification?.isServiceAccessAllowed);
+        setVerificationStatus(nextStatus);
+        setServiceAccessAllowed(nextAccessAllowed);
+        localStorage.setItem('verificationStatus', nextStatus);
+        localStorage.setItem('isServiceAccessAllowed', nextAccessAllowed ? 'true' : 'false');
+      } catch {
+        // keep fallback local state if API request fails
+      }
+    };
+
+    fetchVerificationStatus();
+  }, []);
 
   const inputStyle = {
     marginTop: '0.5rem',
@@ -138,6 +175,11 @@ const VehicleListingForm = () => {
   const handleSubmit = async (event) => {
     event.preventDefault();
     setSubmitState({ loading: false, message: '', isError: false });
+
+    if (!serviceAccessAllowed) {
+      setSubmitState({ loading: false, message: serviceLockMessage, isError: true });
+      return;
+    }
 
     if (!validateForm()) {
       setSubmitState({ loading: false, message: 'Please correct the highlighted fields and try again.', isError: true });
@@ -233,6 +275,17 @@ const VehicleListingForm = () => {
               ? 'Update your vehicle details and save the latest listing information.'
               : 'Add a new vehicle to NepRide with complete listing details.'}
           </p>
+
+          {!serviceAccessAllowed && (
+            <div style={{
+              marginBottom: '1.5rem', padding: '0.85rem 1rem',
+              borderRadius: '8px', border: '1px solid #5b4a1e',
+              backgroundColor: '#2b2210', color: '#ffd782',
+              fontSize: '0.9rem', fontWeight: '600',
+            }}>
+              {serviceLockMessage} Current status: {normalizeVerificationStatus(verificationStatus)}.
+            </div>
+          )}
 
           {/* Status Message */}
           {submitState.message && (
@@ -419,17 +472,17 @@ const VehicleListingForm = () => {
             <div style={{ marginTop: '2.5rem', display: 'flex', justifyContent: 'center' }}>
               <button
                 type="submit"
-                disabled={submitState.loading}
+                disabled={submitState.loading || !serviceAccessAllowed}
                 style={{
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                   gap: '0.5rem', minWidth: '220px', padding: '0.85rem 2.5rem',
-                  backgroundColor: submitState.loading ? '#a08830' : '#d4af37',
+                  backgroundColor: submitState.loading || !serviceAccessAllowed ? '#a08830' : '#d4af37',
                   color: '#000', borderRadius: '8px', border: 'none',
-                  fontWeight: '700', fontSize: '1rem', cursor: submitState.loading ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.3s', opacity: submitState.loading ? 0.7 : 1,
+                  fontWeight: '700', fontSize: '1rem', cursor: submitState.loading || !serviceAccessAllowed ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.3s', opacity: submitState.loading || !serviceAccessAllowed ? 0.7 : 1,
                 }}
-                onMouseEnter={e => { if (!submitState.loading) e.currentTarget.style.backgroundColor = '#c9a227'; }}
-                onMouseLeave={e => { if (!submitState.loading) e.currentTarget.style.backgroundColor = '#d4af37'; }}
+                onMouseEnter={e => { if (!submitState.loading && serviceAccessAllowed) e.currentTarget.style.backgroundColor = '#c9a227'; }}
+                onMouseLeave={e => { if (!submitState.loading && serviceAccessAllowed) e.currentTarget.style.backgroundColor = '#d4af37'; }}
               >
                 {submitState.loading ? (
                   <><Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> Submitting...</>

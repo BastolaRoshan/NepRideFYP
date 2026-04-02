@@ -71,11 +71,7 @@ const Login = () => {
         if (role === 'admin') {
           navigate('/admin-dashboard');
         } else if (role === 'vendor') {
-          if (!isServiceAccessAllowed) {
-            navigate('/verification');
-          } else {
-            navigate('/vendor-dashboard');
-          }
+          navigate('/vendor-dashboard');
         } else {
           navigate('/customer-dashboard');
         }

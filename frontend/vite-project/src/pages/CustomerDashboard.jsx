@@ -791,6 +791,7 @@ const CustomerDashboard = () => {
             {bookingModal && (
                 <BookingModal
                     vehicle={bookingModal}
+                    isServiceAccessAllowed={serviceAccessAllowed}
                     onClose={() => setBookingModal(null)}
                     onBookingCreated={handleBookingCreated}
                 />

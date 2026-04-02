@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Plus, Edit2, Trash2, Package, BadgeCheck } from 'lucide-react';
+import { LogOut, Plus, Edit2, Trash2, Package, BadgeCheck, Car } from 'lucide-react';
 
 const VendorDashboard = () => {
     const navigate = useNavigate();
@@ -11,12 +11,18 @@ const VendorDashboard = () => {
     const [actionState, setActionState] = useState({ message: '', isError: false });
     const [deletingVehicleId, setDeletingVehicleId] = useState('');
     const [verificationStatus, setVerificationStatus] = useState(localStorage.getItem('verificationStatus') || 'NotSubmitted');
+    const [serviceAccessAllowed, setServiceAccessAllowed] = useState(localStorage.getItem('isServiceAccessAllowed') === 'true');
+
+    const serviceLockMessage = 'Services are locked until admin approval.';
 
     const normalizeVerificationStatus = (status) => {
         if (status === 'UnderReview') return 'Under Review';
         if (status === 'NotSubmitted') return 'Not Submitted';
         return status || 'Not Submitted';
     };
+
+    const isVerified = ['verified', 'approved'].includes(String(verificationStatus).toLowerCase());
+    const verificationLabel = normalizeVerificationStatus(verificationStatus);
 
     useEffect(() => {
         if (activeTab === 'vehicles') {
@@ -43,8 +49,11 @@ const VendorDashboard = () => {
             }
 
             const nextStatus = data?.verification?.verificationStatus || 'NotSubmitted';
+            const nextAccessAllowed = Boolean(data?.verification?.isServiceAccessAllowed);
             setVerificationStatus(nextStatus);
+            setServiceAccessAllowed(nextAccessAllowed);
             localStorage.setItem('verificationStatus', nextStatus);
+            localStorage.setItem('isServiceAccessAllowed', nextAccessAllowed ? 'true' : 'false');
         } catch {
             // keep fallback local state if API request fails
         }
@@ -104,6 +113,11 @@ const VendorDashboard = () => {
     };
 
     const handleAddVehicle = () => {
+        if (!serviceAccessAllowed) {
+            setActionState({ message: serviceLockMessage, isError: true });
+            return;
+        }
+
         navigate('/vendor-dashboard/add-vehicle');
     };
 
@@ -112,6 +126,11 @@ const VendorDashboard = () => {
     };
 
     const handleEditVehicle = (vehicle) => {
+        if (!serviceAccessAllowed) {
+            setActionState({ message: serviceLockMessage, isError: true });
+            return;
+        }
+
         navigate('/vendor-dashboard/add-vehicle', {
             state: {
                 mode: 'edit',
@@ -121,6 +140,11 @@ const VendorDashboard = () => {
     };
 
     const handleDeleteVehicle = async (vehicleId) => {
+        if (!serviceAccessAllowed) {
+            setActionState({ message: serviceLockMessage, isError: true });
+            return;
+        }
+
         const shouldDelete = window.confirm('Are you sure you want to delete this vehicle listing?');
         if (!shouldDelete) {
             return;
@@ -151,39 +175,19 @@ const VendorDashboard = () => {
     };
 
     const navStyle = {
-        backgroundColor: '#000',
-        borderBottom: '1px solid #333',
-        padding: '1rem 1.5rem',
+        backgroundColor: '#111111',
+        borderBottom: '1px solid #D4AF37',
+        padding: '1rem 1.5rem 0.9rem',
+        display: 'grid',
+        gridTemplateColumns: '1fr auto 1fr',
+        alignItems: 'center',
+        gap: '1rem',
     };
 
     const navInnerStyle = {
-        maxWidth: '1200px',
-        margin: '0 auto',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-    };
-
-    const tabActiveStyle = {
-        padding: '0.75rem 1.5rem',
-        borderRadius: '8px',
-        fontWeight: '600',
-        backgroundColor: '#d4af37',
-        color: '#000',
-        border: 'none',
-        cursor: 'pointer',
-        transition: 'all 0.3s',
-    };
-
-    const tabInactiveStyle = {
-        padding: '0.75rem 1.5rem',
-        borderRadius: '8px',
-        fontWeight: '500',
-        backgroundColor: 'transparent',
-        color: '#d4af37',
-        border: '1px solid #d4af37',
-        cursor: 'pointer',
-        transition: 'all 0.3s',
+        gap: '0.85rem',
     };
 
     return (
@@ -191,77 +195,129 @@ const VendorDashboard = () => {
             {/* Top Navbar */}
             <nav style={navStyle}>
                 <div style={navInnerStyle}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <h1 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#d4af37', margin: 0 }}>NepRide</h1>
-                        <span style={{ color: '#fff', fontSize: '1rem', fontWeight: 'normal' }}>Vendor Dashboard</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
+                        <Car size={20} color="#D4AF37" />
+                        <span style={{ color: '#D4AF37', fontSize: '1.5rem', fontWeight: 800, letterSpacing: '0.02em' }}>NepRide</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {[
+                        { label: 'My Vehicles', tab: 'vehicles' },
+                        { label: 'Booking Requests', tab: 'bookings' },
+                    ].map(({ label, tab }) => (
                         <button
-                            onClick={handleGoToVerification}
+                            key={tab}
+                            type="button"
+                            onClick={() => setActiveTab(tab)}
                             style={{
-                                display: 'flex', alignItems: 'center', gap: '0.5rem',
-                                padding: '0.5rem 1rem', border: '1px solid #2f7ee6',
-                                color: '#9fc3ff', borderRadius: '8px', backgroundColor: 'transparent',
-                                cursor: 'pointer', fontWeight: '500', transition: 'all 0.3s',
+                                border: 'none',
+                                borderRadius: '999px',
+                                padding: '0.72rem 1.05rem',
+                                backgroundColor: activeTab === tab ? '#D4AF37' : 'transparent',
+                                color: activeTab === tab ? '#111111' : '#d9d9d9',
+                                fontSize: '0.92rem',
+                                fontWeight: 700,
+                                letterSpacing: '0.01em',
+                                cursor: 'pointer',
+                                boxShadow: activeTab === tab ? 'inset 0 -2px 0 #b38b1d' : 'none',
+                                transition: 'background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease',
                             }}
-                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#2f7ee6'; e.currentTarget.style.color = '#ffffff'; }}
-                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#9fc3ff'; }}
                         >
-                            <BadgeCheck size={18} /> Verify Account - {normalizeVerificationStatus(verificationStatus)}
+                            {label}
                         </button>
+                    ))}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.85rem', flexWrap: 'wrap' }}>
+                    {activeTab === 'vehicles' && (
                         <button
-                            onClick={handleLogout}
+                            onClick={handleAddVehicle}
+                            disabled={!serviceAccessAllowed}
                             style={{
-                                display: 'flex', alignItems: 'center', gap: '0.5rem',
-                                padding: '0.5rem 1rem', border: '1px solid #d4af37',
-                                color: '#d4af37', borderRadius: '8px', backgroundColor: 'transparent',
-                                cursor: 'pointer', fontWeight: '500', transition: 'all 0.3s',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.45rem',
+                                padding: '0.56rem 1rem',
+                                backgroundColor: serviceAccessAllowed ? '#D4AF37' : '#7f6a22',
+                                color: '#111111',
+                                borderRadius: '8px',
+                                border: 'none',
+                                fontWeight: 600,
+                                fontSize: '0.85rem',
+                                cursor: serviceAccessAllowed ? 'pointer' : 'not-allowed',
+                                transition: 'all 0.3s',
+                                opacity: serviceAccessAllowed ? 1 : 0.7,
                             }}
-                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#d4af37'; e.currentTarget.style.color = '#000'; }}
-                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#d4af37'; }}
                         >
-                            <LogOut size={18} /> Logout
+                            <Plus size={16} /> Add Vehicle
                         </button>
-                    </div>
+                    )}
+                    <button
+                        type="button"
+                        onClick={handleGoToVerification}
+                        style={{
+                            border: '1px solid #3a3524',
+                            backgroundColor: '#171717',
+                            color: '#e5e5e5',
+                            borderRadius: '999px',
+                            padding: '0.48rem 0.85rem',
+                            fontSize: '0.82rem',
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '1rem' }} aria-hidden="true">
+                            {isVerified ? '✔️' : ''}
+                        </span>
+                        <span>Profile</span>
+                        {!isVerified && (
+                            <span style={{ color: '#8f8f8f', fontWeight: 600 }}>
+                                {verificationLabel === 'Not Submitted' ? 'Verify' : verificationLabel}
+                            </span>
+                        )}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleLogout}
+                        style={{
+                            border: '1px solid #4a1f1f',
+                            backgroundColor: 'transparent',
+                            color: '#f0b2b2',
+                            borderRadius: '999px',
+                            padding: '0.48rem 0.85rem',
+                            fontSize: '0.82rem',
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.42rem',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <LogOut size={15} />
+                        Logout
+                    </button>
                 </div>
             </nav>
 
             {/* Main Content */}
             <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem' }}>
-                {/* Toggle Buttons */}
-                <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
-                    <button
-                        onClick={() => setActiveTab('vehicles')}
-                        style={activeTab === 'vehicles' ? tabActiveStyle : tabInactiveStyle}
-                    >
-                        My Vehicles
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('bookings')}
-                        style={activeTab === 'bookings' ? tabActiveStyle : tabInactiveStyle}
-                    >
-                        Booking Requests
-                    </button>
-                </div>
+                {!serviceAccessAllowed && (
+                    <section style={{ margin: '0 0 1rem 0', border: '1px solid #3a3524', backgroundColor: '#171717', color: '#e5e5e5', borderRadius: '12px', padding: '0.9rem 1rem' }}>
+                        <strong style={{ color: '#D4AF37' }}>Service Access Locked.</strong>
+                        <span style={{ marginLeft: '0.5rem' }}>{serviceLockMessage}</span>
+                        <span style={{ marginLeft: '0.65rem', color: '#9a9a9a' }}>Current status: {verificationLabel}.</span>
+                    </section>
+                )}
 
                 {/* Main Section */}
                 {activeTab === 'vehicles' ? (
                     <div>
-                        {/* Header with Title and Add Button */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-                            <h2 style={{ fontSize: '1.75rem', fontWeight: '700', color: '#fff', margin: 0 }}>Manage Vehicles</h2>
-                            <button
-                                onClick={handleAddVehicle}
-                                style={{
-                                    display: 'flex', alignItems: 'center', gap: '0.5rem',
-                                    padding: '0.75rem 1.5rem', backgroundColor: '#d4af37',
-                                    color: '#000', borderRadius: '8px', border: 'none',
-                                    fontWeight: '600', cursor: 'pointer', transition: 'all 0.3s',
-                                }}
-                            >
-                                <Plus size={20} /> Add New Vehicle
-                            </button>
-                        </div>
+                        {/* Header with Title */}
+                        <h2 style={{ fontSize: '1.75rem', fontWeight: '700', color: '#fff', margin: '0 0 1.5rem 0' }}>Manage Vehicles</h2>
 
                         {actionState.message && (
                             <div
@@ -335,25 +391,27 @@ const VendorDashboard = () => {
                                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                     <button
                                                         onClick={() => handleEditVehicle(vehicle)}
+                                                        disabled={!serviceAccessAllowed}
                                                         style={{
                                                             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                             gap: '0.5rem', padding: '0.5rem 0.75rem', border: '1px solid #d4af37',
                                                             color: '#d4af37', borderRadius: '8px', backgroundColor: 'transparent',
-                                                            cursor: 'pointer', fontSize: '0.875rem', transition: 'all 0.3s',
+                                                            cursor: serviceAccessAllowed ? 'pointer' : 'not-allowed', fontSize: '0.875rem', transition: 'all 0.3s',
+                                                            opacity: serviceAccessAllowed ? 1 : 0.65,
                                                         }}
                                                     >
                                                         <Edit2 size={14} /> Edit
                                                     </button>
                                                     <button
                                                         onClick={() => handleDeleteVehicle(vehicle._id)}
-                                                        disabled={deletingVehicleId === vehicle._id}
+                                                        disabled={deletingVehicleId === vehicle._id || !serviceAccessAllowed}
                                                         style={{
                                                             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                             gap: '0.5rem', padding: '0.5rem 0.75rem', border: '1px solid #ef4444',
                                                             color: '#ef4444', borderRadius: '8px', backgroundColor: 'transparent',
-                                                            cursor: deletingVehicleId === vehicle._id ? 'not-allowed' : 'pointer',
+                                                            cursor: deletingVehicleId === vehicle._id || !serviceAccessAllowed ? 'not-allowed' : 'pointer',
                                                             fontSize: '0.875rem', transition: 'all 0.3s',
-                                                            opacity: deletingVehicleId === vehicle._id ? 0.7 : 1,
+                                                            opacity: deletingVehicleId === vehicle._id || !serviceAccessAllowed ? 0.7 : 1,
                                                         }}
                                                     >
                                                         <Trash2 size={14} /> {deletingVehicleId === vehicle._id ? 'Deleting...' : 'Delete'}
