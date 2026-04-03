@@ -444,3 +444,54 @@ export const updateAdminUserDocument = async (req, res) => {
     return res.json({ success: false, message: error.message });
   }
 };
+
+export const updateUserVerification = async (req, res) => {
+  try {
+    const { verificationStatus, verificationNote, shouldAllowAccess } = req.body;
+    const userId = req.params.id;
+
+    const user = await userModel.findById(userId);
+    if (!user) {
+      return res.json({ success: false, message: "User not found" });
+    }
+
+    // Validate verification status
+    const validStatuses = ["NotSubmitted", "UnderReview", "Approved", "Rejected"];
+    if (verificationStatus && !validStatuses.includes(verificationStatus)) {
+      return res.json({ success: false, message: "Invalid verification status" });
+    }
+
+    if (verificationStatus !== undefined) {
+      user.verificationStatus = verificationStatus;
+      user.verificationReviewedAt = new Date();
+    }
+
+    if (verificationNote !== undefined) {
+      user.verificationNote = String(verificationNote || "").trim();
+    }
+
+    // Handle service access control
+    // If shouldAllowAccess is false, block access regardless of verification status
+    // If shouldAllowAccess is true, only allow if verification is Approved
+    if (shouldAllowAccess === false) {
+      user.isVerified = false;
+    } else if (shouldAllowAccess === true && verificationStatus === "Approved") {
+      user.isVerified = true;
+    }
+
+    // Re-sync verification state to ensure consistency
+    syncUserVerificationState(user);
+
+    await user.save();
+
+    const updatedUser = await userModel.findById(userId).select("-password -verifyOtp -resetOtp");
+
+    return res.json({
+      success: true,
+      message: "User verification updated",
+      user: toSafeUser(updatedUser),
+    });
+  } catch (error) {
+    return res.json({ success: false, message: error.message });
+  }
+};
