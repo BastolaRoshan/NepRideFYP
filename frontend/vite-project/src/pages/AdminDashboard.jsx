@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Users, Car, CreditCard, FileText, RefreshCcw, Trash2, Save } from 'lucide-react';
+import { LogOut, Users, Car, CreditCard, FileText, Trash2, Save } from 'lucide-react';
 import UsersList from './UsersList';
 import DocumentPreviewModal from './DocumentPreviewModal';
 
@@ -14,6 +14,19 @@ const tabs = [
 const userRoleOptions = ['Customer', 'Vendor', 'Admin'];
 const paymentStatusOptions = ['Unpaid', 'Paid', 'Refunded'];
 const documentStatusOptions = ['Pending', 'Approved', 'Rejected'];
+
+const palette = {
+  bg: '#F8FAFC',
+  card: '#FFFFFF',
+  border: '#E5E7EB',
+  accent: '#D4AF37',
+  text: '#111827',
+  textSecondary: '#6B7280',
+  approved: '#22C55E',
+  underReview: '#F59E0B',
+  rejected: '#EF4444',
+  notSubmitted: '#9CA3AF',
+};
 
 const resolveDocumentUrl = (url) => {
   const normalized = String(url || '').trim();
@@ -504,8 +517,8 @@ const AdminDashboard = () => {
   };
 
   const cardStyle = {
-    backgroundColor: '#000',
-    border: '1px solid #333',
+    backgroundColor: palette.card,
+    border: `1px solid ${palette.border}`,
     borderRadius: '12px',
     padding: '1rem',
   };
@@ -513,29 +526,30 @@ const AdminDashboard = () => {
   const inputStyle = {
     width: '100%',
     borderRadius: '8px',
-    border: '1px solid #333',
-    backgroundColor: '#0f0f0f',
+    border: `1px solid ${palette.border}`,
+    backgroundColor: palette.card,
     padding: '0.55rem 0.75rem',
-    color: '#fff',
+    color: palette.text,
     fontSize: '0.85rem',
   };
 
   const actionButtonStyle = {
     borderRadius: '8px',
-    border: '1px solid #d4af37',
-    backgroundColor: 'transparent',
-    color: '#d4af37',
+    border: `1px solid ${palette.accent}`,
+    backgroundColor: palette.accent,
+    color: palette.text,
     padding: '0.45rem 0.75rem',
     cursor: 'pointer',
     fontSize: '0.8rem',
+    fontWeight: 600,
     display: 'inline-flex',
     alignItems: 'center',
     gap: '0.35rem',
   };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#0f0f0f', color: '#fff' }}>
-      <nav style={{ backgroundColor: '#000', borderBottom: '1px solid #333', padding: '1rem 1.5rem' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: palette.bg, color: palette.text }}>
+      <nav style={{ backgroundColor: palette.card, borderBottom: `1px solid ${palette.border}`, padding: '1rem 1.5rem' }}>
         <div
           style={{
             maxWidth: '1200px',
@@ -546,14 +560,11 @@ const AdminDashboard = () => {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <h1 style={{ margin: 0, color: '#d4af37', fontSize: '1.5rem' }}>NepRide</h1>
-            <span style={{ color: '#fff', fontSize: '1rem' }}>Admin Dashboard</span>
+            <h1 style={{ margin: 0, color: palette.accent, fontSize: '1.5rem' }}>NepRide</h1>
+
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <button onClick={handleRefresh} style={actionButtonStyle}>
-              <RefreshCcw size={14} /> Refresh
-            </button>
             <button onClick={handleLogout} style={actionButtonStyle}>
               <LogOut size={14} /> Logout
             </button>
@@ -564,24 +575,24 @@ const AdminDashboard = () => {
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem' }}>
           <div style={cardStyle}>
-            <p style={{ margin: 0, color: '#a0a0a0', fontSize: '0.8rem' }}>Users</p>
-            <h3 style={{ margin: '0.35rem 0 0', color: '#d4af37' }}>{summary.usersCount || 0}</h3>
+            <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.8rem' }}>Users</p>
+            <h3 style={{ margin: '0.35rem 0 0', color: palette.accent }}>{summary.usersCount || 0}</h3>
           </div>
           <div style={cardStyle}>
-            <p style={{ margin: 0, color: '#a0a0a0', fontSize: '0.8rem' }}>Vehicle Listings</p>
-            <h3 style={{ margin: '0.35rem 0 0', color: '#d4af37' }}>{summary.vehiclesCount || 0}</h3>
+            <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.8rem' }}>Vehicle Listings</p>
+            <h3 style={{ margin: '0.35rem 0 0', color: palette.accent }}>{summary.vehiclesCount || 0}</h3>
           </div>
           <div style={cardStyle}>
-            <p style={{ margin: 0, color: '#a0a0a0', fontSize: '0.8rem' }}>Bookings</p>
-            <h3 style={{ margin: '0.35rem 0 0', color: '#d4af37' }}>{summary.bookingsCount || 0}</h3>
+            <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.8rem' }}>Bookings</p>
+            <h3 style={{ margin: '0.35rem 0 0', color: palette.accent }}>{summary.bookingsCount || 0}</h3>
           </div>
           <div style={cardStyle}>
-            <p style={{ margin: 0, color: '#a0a0a0', fontSize: '0.8rem' }}>Paid Revenue</p>
-            <h3 style={{ margin: '0.35rem 0 0', color: '#d4af37' }}>Rs. {summary.totalRevenue || 0}</h3>
+            <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.8rem' }}>Paid Revenue</p>
+            <h3 style={{ margin: '0.35rem 0 0', color: palette.accent }}>Rs. {summary.totalRevenue || 0}</h3>
           </div>
           <div style={cardStyle}>
-            <p style={{ margin: 0, color: '#a0a0a0', fontSize: '0.8rem' }}>Documents</p>
-            <h3 style={{ margin: '0.35rem 0 0', color: '#d4af37' }}>{summary.totalDocuments || 0}</h3>
+            <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.8rem' }}>Documents</p>
+            <h3 style={{ margin: '0.35rem 0 0', color: palette.accent }}>{summary.totalDocuments || 0}</h3>
           </div>
         </div>
 
@@ -596,9 +607,9 @@ const AdminDashboard = () => {
                 onClick={() => setActiveTab(tab.key)}
                 style={{
                   borderRadius: '8px',
-                  border: isActive ? '1px solid #d4af37' : '1px solid #333',
-                  backgroundColor: isActive ? '#d4af37' : '#000',
-                  color: isActive ? '#000' : '#d4af37',
+                  border: isActive ? `1px solid ${palette.accent}` : `1px solid ${palette.border}`,
+                  backgroundColor: isActive ? palette.accent : palette.card,
+                  color: palette.text,
                   padding: '0.6rem 0.9rem',
                   cursor: 'pointer',
                   display: 'inline-flex',
@@ -621,9 +632,9 @@ const AdminDashboard = () => {
               padding: '0.7rem 0.9rem',
               borderRadius: '8px',
               fontSize: '0.85rem',
-              border: actionMessage.isError ? '1px solid #ef444460' : '1px solid #16a34a60',
+              border: actionMessage.isError ? `1px solid ${palette.rejected}60` : `1px solid ${palette.approved}60`,
               backgroundColor: actionMessage.isError ? '#ef444415' : '#16a34a15',
-              color: actionMessage.isError ? '#f87171' : '#4ade80',
+              color: actionMessage.isError ? palette.rejected : palette.approved,
             }}
           >
             {actionMessage.message}
@@ -631,7 +642,7 @@ const AdminDashboard = () => {
         )}
 
         {loading ? (
-          <div style={{ ...cardStyle, textAlign: 'center', color: '#a0a0a0' }}>Loading {activeTab}...</div>
+          <div style={{ ...cardStyle, textAlign: 'center', color: palette.textSecondary }}>Loading {activeTab}...</div>
         ) : null}
 
         {!loading && activeTab === 'users' && (

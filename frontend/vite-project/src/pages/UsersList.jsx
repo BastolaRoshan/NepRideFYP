@@ -1,5 +1,18 @@
 import { useState, useMemo } from 'react';
-import { ChevronDown, FileText, Eye } from 'lucide-react';
+import { Eye } from 'lucide-react';
+
+const palette = {
+  bg: '#F8FAFC',
+  card: '#FFFFFF',
+  border: '#E5E7EB',
+  accent: '#D4AF37',
+  text: '#111827',
+  textSecondary: '#6B7280',
+  approved: '#22C55E',
+  underReview: '#F59E0B',
+  rejected: '#EF4444',
+  notSubmitted: '#9CA3AF',
+};
 
 const UsersList = ({ users, onViewDocuments }) => {
   const [filter, setFilter] = useState('All');
@@ -50,40 +63,40 @@ const UsersList = ({ users, onViewDocuments }) => {
   const getVerificationStatusColor = (status) => {
     switch (status) {
       case 'Approved':
-        return { bg: '#16a34a25', text: '#4ade80', border: '#16a34a60' };
+        return { bg: '#22C55E1A', text: palette.approved, border: '#22C55E66' };
       case 'UnderReview':
-        return { bg: '#ea580c25', text: '#fb923c', border: '#ea580c60' };
+        return { bg: '#F59E0B1A', text: palette.underReview, border: '#F59E0B66' };
       case 'Rejected':
-        return { bg: '#dc262625', text: '#f87171', border: '#dc262660' };
+        return { bg: '#EF44441A', text: palette.rejected, border: '#EF444466' };
       case 'NotSubmitted':
-        return { bg: '#64748b25', text: '#94a3b8', border: '#64748b60' };
+        return { bg: '#9CA3AF1A', text: palette.notSubmitted, border: '#9CA3AF66' };
       default:
-        return { bg: '#64748b25', text: '#94a3b8', border: '#64748b60' };
+        return { bg: '#9CA3AF1A', text: palette.notSubmitted, border: '#9CA3AF66' };
     }
   };
 
   const getRoleColor = (role) => {
     switch (role) {
       case 'Customer':
-        return { bg: '#3b82f625', text: '#60a5fa', border: '#3b82f660' };
+        return { bg: '#EEF2FF', text: '#4338CA', border: '#C7D2FE' };
       case 'Vendor':
-        return { bg: '#a855f725', text: '#d8b4fe', border: '#a855f760' };
+        return { bg: '#FFF7ED', text: '#C2410C', border: '#FED7AA' };
       case 'Admin':
-        return { bg: '#d4af3725', text: '#d4af37', border: '#d4af3760' };
+        return { bg: '#FFF8E1', text: '#A16207', border: '#FDE68A' };
       default:
-        return { bg: '#3b82f625', text: '#60a5fa', border: '#3b82f660' };
+        return { bg: '#EEF2FF', text: '#4338CA', border: '#C7D2FE' };
     }
   };
 
   const getAccessStatusColor = (allowed) => {
     return allowed
-      ? { bg: '#16a34a25', text: '#4ade80', border: '#16a34a60' }
-      : { bg: '#dc262625', text: '#f87171', border: '#dc262660' };
+      ? { bg: '#22C55E1A', text: palette.approved, border: '#22C55E66' }
+      : { bg: '#EF44441A', text: palette.rejected, border: '#EF444466' };
   };
 
   const cardStyle = {
-    backgroundColor: '#000',
-    border: '1px solid #333',
+    backgroundColor: palette.card,
+    border: `1px solid ${palette.border}`,
     borderRadius: '12px',
     padding: '1rem',
   };
@@ -91,10 +104,10 @@ const UsersList = ({ users, onViewDocuments }) => {
   const inputStyle = {
     width: '100%',
     borderRadius: '8px',
-    border: '1px solid #333',
-    backgroundColor: '#0f0f0f',
+    border: `1px solid ${palette.border}`,
+    backgroundColor: palette.card,
     padding: '0.55rem 0.75rem',
-    color: '#fff',
+    color: palette.text,
     fontSize: '0.85rem',
   };
 
@@ -115,7 +128,7 @@ const UsersList = ({ users, onViewDocuments }) => {
       {/* Filters Section */}
       <div style={{ ...cardStyle, display: 'grid', gap: '0.75rem' }}>
         <div>
-          <label style={{ color: '#a0a0a0', fontSize: '0.8rem', display: 'block', marginBottom: '0.35rem' }}>
+          <label style={{ color: palette.textSecondary, fontSize: '0.8rem', display: 'block', marginBottom: '0.35rem' }}>
             Filter Users
           </label>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -125,9 +138,9 @@ const UsersList = ({ users, onViewDocuments }) => {
                 onClick={() => setFilter(f.key)}
                 style={{
                   borderRadius: '6px',
-                  border: filter === f.key ? '1px solid #d4af37' : '1px solid #333',
-                  backgroundColor: filter === f.key ? '#d4af3720' : '#0f0f0f',
-                  color: filter === f.key ? '#d4af37' : '#a0a0a0',
+                  border: filter === f.key ? `1px solid ${palette.accent}` : `1px solid ${palette.border}`,
+                  backgroundColor: filter === f.key ? '#FFF8E1' : palette.card,
+                  color: filter === f.key ? '#A16207' : palette.textSecondary,
                   padding: '0.4rem 0.65rem',
                   cursor: 'pointer',
                   fontSize: '0.8rem',
@@ -142,7 +155,7 @@ const UsersList = ({ users, onViewDocuments }) => {
         </div>
 
         <div>
-          <label style={{ color: '#a0a0a0', fontSize: '0.8rem', display: 'block', marginBottom: '0.35rem' }}>
+          <label style={{ color: palette.textSecondary, fontSize: '0.8rem', display: 'block', marginBottom: '0.35rem' }}>
             Search by Name, Email, or Phone
           </label>
           <input
@@ -156,13 +169,13 @@ const UsersList = ({ users, onViewDocuments }) => {
       </div>
 
       {/* Results Count */}
-      <div style={{ color: '#a0a0a0', fontSize: '0.85rem' }}>
+      <div style={{ color: palette.textSecondary, fontSize: '0.85rem' }}>
         Showing {filteredUsers.length} of {users.length} users
       </div>
 
       {/* Users Table */}
       {filteredUsers.length === 0 ? (
-        <div style={{ ...cardStyle, textAlign: 'center', color: '#a0a0a0', padding: '2rem' }}>
+        <div style={{ ...cardStyle, textAlign: 'center', color: palette.textSecondary, padding: '2rem' }}>
           No users found matching the selected filters.
         </div>
       ) : (
@@ -170,8 +183,8 @@ const UsersList = ({ users, onViewDocuments }) => {
           style={{
             overflowX: 'auto',
             borderRadius: '12px',
-            border: '1px solid #333',
-            backgroundColor: '#000',
+            border: `1px solid ${palette.border}`,
+            backgroundColor: palette.card,
           }}
         >
           <table
@@ -182,26 +195,26 @@ const UsersList = ({ users, onViewDocuments }) => {
             }}
           >
             <thead>
-              <tr style={{ borderBottom: '1px solid #333', backgroundColor: '#0f0f0f' }}>
-                <th style={{ padding: '0.75rem', textAlign: 'left', color: '#d4af37', fontWeight: 600 }}>
+              <tr style={{ borderBottom: `1px solid ${palette.border}`, backgroundColor: palette.bg }}>
+                <th style={{ padding: '0.75rem', textAlign: 'left', color: palette.text, fontWeight: 600 }}>
                   Name
                 </th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', color: '#d4af37', fontWeight: 600 }}>
+                <th style={{ padding: '0.75rem', textAlign: 'left', color: palette.text, fontWeight: 600 }}>
                   Email
                 </th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', color: '#d4af37', fontWeight: 600 }}>
+                <th style={{ padding: '0.75rem', textAlign: 'left', color: palette.text, fontWeight: 600 }}>
                   Role
                 </th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', color: '#d4af37', fontWeight: 600 }}>
+                <th style={{ padding: '0.75rem', textAlign: 'left', color: palette.text, fontWeight: 600 }}>
                   Verification
                 </th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', color: '#d4af37', fontWeight: 600 }}>
+                <th style={{ padding: '0.75rem', textAlign: 'left', color: palette.text, fontWeight: 600 }}>
                   Access
                 </th>
-                <th style={{ padding: '0.75rem', textAlign: 'center', color: '#d4af37', fontWeight: 600 }}>
+                <th style={{ padding: '0.75rem', textAlign: 'center', color: palette.text, fontWeight: 600 }}>
                   Docs
                 </th>
-                <th style={{ padding: '0.75rem', textAlign: 'center', color: '#d4af37', fontWeight: 600 }}>
+                <th style={{ padding: '0.75rem', textAlign: 'center', color: palette.text, fontWeight: 600 }}>
                   Actions
                 </th>
               </tr>
@@ -217,30 +230,30 @@ const UsersList = ({ users, onViewDocuments }) => {
                   <tr
                     key={user._id}
                     style={{
-                      borderBottom: '1px solid #1f1f1f',
-                      backgroundColor: '#000',
+                      borderBottom: `1px solid ${palette.border}`,
+                      backgroundColor: palette.card,
                       transition: 'background-color 0.2s',
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0a0a0a')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#000')}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
                   >
                     {/* Name */}
-                    <td style={{ padding: '0.75rem', borderRight: '1px solid #1f1f1f' }}>
+                    <td style={{ padding: '0.75rem', borderRight: `1px solid ${palette.border}` }}>
                       <div>
-                        <p style={{ margin: 0, fontWeight: 500, color: '#fff' }}>{user.name}</p>
-                        <p style={{ margin: '0.2rem 0 0', color: '#a0a0a0', fontSize: '0.75rem' }}>
+                        <p style={{ margin: 0, fontWeight: 600, color: palette.text }}>{user.name}</p>
+                        <p style={{ margin: '0.2rem 0 0', color: palette.textSecondary, fontSize: '0.75rem' }}>
                           {user.phone}
                         </p>
                       </div>
                     </td>
 
                     {/* Email */}
-                    <td style={{ padding: '0.75rem', borderRight: '1px solid #1f1f1f', color: '#a0a0a0' }}>
+                    <td style={{ padding: '0.75rem', borderRight: `1px solid ${palette.border}`, color: palette.textSecondary }}>
                       {user.email}
                     </td>
 
                     {/* Role */}
-                    <td style={{ padding: '0.75rem', borderRight: '1px solid #1f1f1f' }}>
+                    <td style={{ padding: '0.75rem', borderRight: `1px solid ${palette.border}` }}>
                       <div
                         style={{
                           ...roleColor,
@@ -255,7 +268,7 @@ const UsersList = ({ users, onViewDocuments }) => {
                     </td>
 
                     {/* Verification Status */}
-                    <td style={{ padding: '0.75rem', borderRight: '1px solid #1f1f1f' }}>
+                    <td style={{ padding: '0.75rem', borderRight: `1px solid ${palette.border}` }}>
                       <div
                         style={{
                           ...verificationColor,
@@ -276,7 +289,7 @@ const UsersList = ({ users, onViewDocuments }) => {
                     </td>
 
                     {/* Access Status */}
-                    <td style={{ padding: '0.75rem', borderRight: '1px solid #1f1f1f' }}>
+                    <td style={{ padding: '0.75rem', borderRight: `1px solid ${palette.border}` }}>
                       <div
                         style={{
                           ...accessColor,
@@ -291,7 +304,7 @@ const UsersList = ({ users, onViewDocuments }) => {
                     </td>
 
                     {/* Document Count */}
-                    <td style={{ padding: '0.75rem', textAlign: 'center', borderRight: '1px solid #1f1f1f', color: '#d4af37', fontWeight: 600 }}>
+                    <td style={{ padding: '0.75rem', textAlign: 'center', borderRight: `1px solid ${palette.border}`, color: palette.accent, fontWeight: 700 }}>
                       {documentCount}
                     </td>
 
@@ -306,9 +319,9 @@ const UsersList = ({ users, onViewDocuments }) => {
                         onClick={() => onViewDocuments(user)}
                         style={{
                           borderRadius: '6px',
-                          border: '1px solid #d4af37',
-                          backgroundColor: 'transparent',
-                          color: '#d4af37',
+                          border: `1px solid ${palette.accent}`,
+                          backgroundColor: '#FFF8E1',
+                          color: '#A16207',
                           padding: '0.35rem 0.65rem',
                           cursor: 'pointer',
                           fontSize: '0.75rem',
@@ -319,10 +332,10 @@ const UsersList = ({ users, onViewDocuments }) => {
                           transition: 'all 0.2s',
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#d4af3720';
+                          e.currentTarget.style.backgroundColor = '#FDE68A';
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = 'transparent';
+                          e.currentTarget.style.backgroundColor = '#FFF8E1';
                         }}
                         title={`View ${documentCount} document${documentCount !== 1 ? 's' : ''}`}
                       >

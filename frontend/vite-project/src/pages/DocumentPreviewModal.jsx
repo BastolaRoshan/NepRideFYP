@@ -1,6 +1,19 @@
 import { useState } from 'react';
 import { ChevronRight, Search, X, Save } from 'lucide-react';
 
+const palette = {
+  bg: '#F8FAFC',
+  card: '#FFFFFF',
+  border: '#E5E7EB',
+  accent: '#D4AF37',
+  text: '#111827',
+  textSecondary: '#6B7280',
+  approved: '#22C55E',
+  underReview: '#F59E0B',
+  rejected: '#EF4444',
+  notSubmitted: '#9CA3AF',
+};
+
 const DocumentPreviewModal = ({
   user,
   onClose,
@@ -51,23 +64,24 @@ const DocumentPreviewModal = ({
   const inputStyle = {
     width: '100%',
     borderRadius: '8px',
-    border: '1px solid #d6dae2',
-    backgroundColor: '#fff',
+    border: `1px solid ${palette.border}`,
+    backgroundColor: palette.card,
     padding: '0.55rem 0.75rem',
-    color: '#111827',
+    color: palette.text,
     fontSize: '0.85rem',
   };
 
   const getStatusColor = (status) => {
     switch (status) {
       case 'Approved':
-        return '#4ade80';
+        return palette.approved;
       case 'Rejected':
-        return '#f87171';
+        return palette.rejected;
+      case 'UnderReview':
       case 'Pending':
-        return '#fb923c';
+        return palette.underReview;
       default:
-        return '#94a3b8';
+        return palette.notSubmitted;
     }
   };
 
@@ -92,8 +106,8 @@ const DocumentPreviewModal = ({
     >
       <div
         style={{
-          backgroundColor: '#f8fafc',
-          border: '1px solid #d6dae2',
+          backgroundColor: palette.bg,
+          border: `1px solid ${palette.border}`,
           borderRadius: '14px',
           maxWidth: '1120px',
           width: '100%',
@@ -105,15 +119,15 @@ const DocumentPreviewModal = ({
         }}
       >
         {/* Left Panel - Documents List */}
-        <div style={{ borderRight: '1px solid #d6dae2', padding: '1.1rem', display: 'grid', gap: '0.85rem', gridAutoRows: 'max-content', backgroundColor: '#ffffff' }}>
+        <div style={{ borderRight: `1px solid ${palette.border}`, padding: '1.1rem', display: 'grid', gap: '0.85rem', gridAutoRows: 'max-content', backgroundColor: palette.card }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ margin: 0, color: '#111827', fontSize: '1.9rem', fontWeight: 700 }}>User Documents</h2>
+            <h2 style={{ margin: 0, color: palette.text, fontSize: '1.9rem', fontWeight: 700 }}>User Documents</h2>
             <button
               onClick={onClose}
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#6b7280',
+                color: palette.textSecondary,
                 cursor: 'pointer',
                 padding: '0.25rem',
               }}
@@ -123,29 +137,29 @@ const DocumentPreviewModal = ({
           </div>
 
           <div>
-            <p style={{ margin: 0, color: '#111827', fontSize: '1.75rem', fontWeight: 700 }}>
+            <p style={{ margin: 0, color: palette.text, fontSize: '1.75rem', fontWeight: 700 }}>
               <strong>{user?.name}</strong>
             </p>
-            <p style={{ margin: '0.2rem 0 0', color: '#475569', fontSize: '0.95rem' }}>
+            <p style={{ margin: '0.2rem 0 0', color: palette.textSecondary, fontSize: '0.95rem' }}>
               {user?.email}
             </p>
-            <p style={{ margin: '0.1rem 0 0', color: '#475569', fontSize: '0.95rem' }}>
+            <p style={{ margin: '0.1rem 0 0', color: palette.textSecondary, fontSize: '0.95rem' }}>
               {user?.phone}
             </p>
           </div>
 
           <div
             style={{
-              border: '1px solid #d6dae2',
+              border: `1px solid ${palette.border}`,
               borderRadius: '10px',
               display: 'flex',
               alignItems: 'center',
               gap: '0.45rem',
               padding: '0.5rem 0.65rem',
-              backgroundColor: '#fff',
+              backgroundColor: palette.card,
             }}
           >
-            <Search size={15} color="#6b7280" />
+            <Search size={15} color={palette.textSecondary} />
             <input
               value={documentSearch}
               onChange={(event) => setDocumentSearch(event.target.value)}
@@ -155,7 +169,7 @@ const DocumentPreviewModal = ({
                 outline: 'none',
                 width: '100%',
                 backgroundColor: 'transparent',
-                color: '#0f172a',
+                color: palette.text,
                 fontSize: '0.9rem',
               }}
             />
@@ -164,12 +178,12 @@ const DocumentPreviewModal = ({
           {filteredDocuments.length === 0 ? (
             <div
               style={{
-                backgroundColor: '#f8fafc',
-                border: '1px solid #d6dae2',
+                backgroundColor: palette.bg,
+                border: `1px solid ${palette.border}`,
                 borderRadius: '8px',
                 padding: '1rem',
                 textAlign: 'center',
-                color: '#64748b',
+                color: palette.textSecondary,
               }}
             >
               No documents submitted yet.
@@ -186,14 +200,14 @@ const DocumentPreviewModal = ({
                     key={doc._id}
                     onClick={() => setSelectedDocumentId(String(doc._id))}
                     style={{
-                      backgroundColor: isActive ? '#fffdf5' : '#ffffff',
+                      backgroundColor: isActive ? '#FFF8E1' : palette.card,
                       border: isActive ? '1px solid #e5b949' : '1px solid #d6dae2',
                       borderRadius: '8px',
                       padding: '0.65rem',
                       cursor: 'pointer',
                       textAlign: 'left',
                       transition: 'all 0.2s',
-                      color: '#0f172a',
+                      color: palette.text,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
@@ -224,10 +238,10 @@ const DocumentPreviewModal = ({
                             height: '52px',
                             borderRadius: '6px',
                             border: '1px solid #d6dae2',
-                            backgroundColor: '#f8fafc',
+                            backgroundColor: palette.bg,
                             display: 'grid',
                             placeItems: 'center',
-                            color: '#64748b',
+                            color: palette.textSecondary,
                             fontSize: '0.72rem',
                             fontWeight: 600,
                             flexShrink: 0,
@@ -238,7 +252,7 @@ const DocumentPreviewModal = ({
                       )}
 
                       <div style={{ minWidth: 0 }}>
-                        <p style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <p style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: palette.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {doc.title}
                         </p>
                         <p style={{ margin: '0.2rem 0 0', fontSize: '0.9rem', color: getStatusColor(doc.status), fontWeight: 600 }}>
@@ -247,7 +261,7 @@ const DocumentPreviewModal = ({
                       </div>
                     </div>
 
-                    <ChevronRight size={16} color={isActive ? '#d4af37' : '#64748b'} />
+                    <ChevronRight size={16} color={isActive ? palette.accent : palette.textSecondary} />
                   </button>
                 );
               })}
@@ -263,7 +277,7 @@ const DocumentPreviewModal = ({
             gridTemplateRows: '1fr auto',
             gap: '0.8rem',
             overflowY: 'auto',
-            backgroundColor: '#ffffff',
+            backgroundColor: palette.card,
           }}
         >
           {/* Document Preview */}
@@ -271,7 +285,7 @@ const DocumentPreviewModal = ({
             {selectedDocument ? (
               <div style={{ display: 'grid', gap: '1rem' }}>
                 <div>
-                  <h3 style={{ margin: 0, color: '#1e293b', fontSize: '1.55rem', fontWeight: 700 }}>
+                  <h3 style={{ margin: 0, color: palette.text, fontSize: '1.55rem', fontWeight: 700 }}>
                     {selectedDocument.title}
                   </h3>
                   <p
@@ -289,8 +303,8 @@ const DocumentPreviewModal = ({
                 {/* Document Preview Container */}
                 <div
                   style={{
-                    backgroundColor: '#f8fafc',
-                    border: '1px solid #d6dae2',
+                    backgroundColor: palette.bg,
+                    border: `1px solid ${palette.border}`,
                     borderRadius: '8px',
                     padding: '0.85rem',
                     minHeight: '280px',
@@ -328,23 +342,23 @@ const DocumentPreviewModal = ({
                       />
                     )
                   ) : (
-                    <p style={{ color: '#64748b' }}>No document provided</p>
+                    <p style={{ color: palette.textSecondary }}>No document provided</p>
                   )}
                 </div>
 
                 {selectedDocument.note && (
                   <div
                     style={{
-                      backgroundColor: '#f8fafc',
-                      border: '1px solid #d6dae2',
+                      backgroundColor: palette.bg,
+                      border: `1px solid ${palette.border}`,
                       borderRadius: '8px',
                       padding: '0.75rem',
                     }}
                   >
-                    <p style={{ margin: 0, color: '#475569', fontSize: '0.8rem', marginBottom: '0.35rem' }}>
+                    <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.8rem', marginBottom: '0.35rem' }}>
                       Admin Note:
                     </p>
-                    <p style={{ margin: 0, color: '#0f172a', fontSize: '0.85rem' }}>
+                    <p style={{ margin: 0, color: palette.text, fontSize: '0.85rem' }}>
                       {selectedDocument.note}
                     </p>
                   </div>
@@ -357,7 +371,7 @@ const DocumentPreviewModal = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   minHeight: '200px',
-                  color: '#64748b',
+                  color: palette.textSecondary,
                   textAlign: 'center',
                 }}
               >
@@ -367,9 +381,9 @@ const DocumentPreviewModal = ({
           </div>
 
           {/* Verification Controls */}
-          <div style={{ display: 'grid', gap: '0.75rem', borderTop: '1px solid #e2e8f0', paddingTop: '0.9rem' }}>
+          <div style={{ display: 'grid', gap: '0.75rem', borderTop: `1px solid ${palette.border}`, paddingTop: '0.9rem' }}>
             <div>
-              <label style={{ color: '#334155', fontSize: '0.88rem', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>
+              <label style={{ color: palette.text, fontSize: '0.88rem', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>
                 Verification Status
               </label>
               <select
@@ -385,7 +399,7 @@ const DocumentPreviewModal = ({
             </div>
 
             <div>
-              <label style={{ color: '#334155', fontSize: '0.88rem', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>
+              <label style={{ color: palette.text, fontSize: '0.88rem', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>
                 Verification Note / Remarks
               </label>
               <textarea
@@ -406,8 +420,8 @@ const DocumentPreviewModal = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.75rem',
-                backgroundColor: '#f8fafc',
-                border: '1px solid #d6dae2',
+                backgroundColor: palette.bg,
+                border: `1px solid ${palette.border}`,
                 borderRadius: '8px',
                 padding: '0.75rem',
               }}
@@ -421,7 +435,7 @@ const DocumentPreviewModal = ({
               />
               <label
                 htmlFor="allowAccess"
-                style={{ cursor: 'pointer', color: '#0f172a', fontSize: '0.9rem', margin: 0, fontWeight: 600 }}
+                style={{ cursor: 'pointer', color: palette.text, fontSize: '0.9rem', margin: 0, fontWeight: 600 }}
               >
                 Allow service access
               </label>
@@ -433,9 +447,9 @@ const DocumentPreviewModal = ({
                   padding: '0.6rem 0.75rem',
                   borderRadius: '6px',
                   fontSize: '0.82rem',
-                  border: actionMessage.isError ? '1px solid #ef444460' : '1px solid #16a34a60',
-                  backgroundColor: actionMessage.isError ? '#ef444415' : '#16a34a15',
-                  color: actionMessage.isError ? '#f87171' : '#4ade80',
+                  border: actionMessage.isError ? `1px solid ${palette.rejected}60` : `1px solid ${palette.approved}60`,
+                  backgroundColor: actionMessage.isError ? '#EF444415' : '#22C55E15',
+                  color: actionMessage.isError ? palette.rejected : palette.approved,
                 }}
               >
                 {actionMessage.message}
@@ -447,9 +461,9 @@ const DocumentPreviewModal = ({
               disabled={saving || loading}
               style={{
                 borderRadius: '8px',
-                border: '1px solid #d4af37',
-                backgroundColor: '#e5b949',
-                color: '#1f2937',
+                border: `1px solid ${palette.accent}`,
+                backgroundColor: palette.accent,
+                color: palette.text,
                 padding: '0.6rem 0.9rem',
                 cursor: saving || loading ? 'not-allowed' : 'pointer',
                 fontSize: '0.95rem',

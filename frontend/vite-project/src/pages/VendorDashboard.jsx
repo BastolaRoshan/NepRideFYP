@@ -2,6 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Plus, Edit2, Trash2, Package, BadgeCheck, Car } from 'lucide-react';
 
+const palette = {
+    bg: '#F8FAFC',
+    card: '#FFFFFF',
+    border: '#E5E7EB',
+    accent: '#D4AF37',
+    text: '#111827',
+    textSecondary: '#6B7280',
+    approved: '#22C55E',
+    underReview: '#F59E0B',
+    rejected: '#EF4444',
+    notSubmitted: '#9CA3AF',
+};
+
 const VendorDashboard = () => {
     const navigate = useNavigate();
     const [vehicles, setVehicles] = useState([]);
@@ -175,8 +188,8 @@ const VendorDashboard = () => {
     };
 
     const navStyle = {
-        backgroundColor: '#111111',
-        borderBottom: '1px solid #D4AF37',
+        backgroundColor: palette.card,
+        borderBottom: `1px solid ${palette.border}`,
         padding: '1rem 1.5rem 0.9rem',
         display: 'grid',
         gridTemplateColumns: '1fr auto 1fr',
@@ -191,13 +204,13 @@ const VendorDashboard = () => {
     };
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#0f0f0f', color: '#fff' }}>
+        <div style={{ minHeight: '100vh', backgroundColor: palette.bg, color: palette.text }}>
             {/* Top Navbar */}
             <nav style={navStyle}>
                 <div style={navInnerStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
-                        <Car size={20} color="#D4AF37" />
-                        <span style={{ color: '#D4AF37', fontSize: '1.5rem', fontWeight: 800, letterSpacing: '0.02em' }}>NepRide</span>
+                        <Car size={20} color={palette.accent} />
+                        <span style={{ color: palette.accent, fontSize: '1.5rem', fontWeight: 800, letterSpacing: '0.02em' }}>NepRide</span>
                     </div>
                 </div>
 
@@ -211,16 +224,16 @@ const VendorDashboard = () => {
                             type="button"
                             onClick={() => setActiveTab(tab)}
                             style={{
-                                border: 'none',
                                 borderRadius: '999px',
                                 padding: '0.72rem 1.05rem',
-                                backgroundColor: activeTab === tab ? '#D4AF37' : 'transparent',
-                                color: activeTab === tab ? '#111111' : '#d9d9d9',
+                                backgroundColor: activeTab === tab ? palette.accent : palette.card,
+                                color: palette.text,
                                 fontSize: '0.92rem',
                                 fontWeight: 700,
                                 letterSpacing: '0.01em',
                                 cursor: 'pointer',
-                                boxShadow: activeTab === tab ? 'inset 0 -2px 0 #b38b1d' : 'none',
+                                border: `1px solid ${activeTab === tab ? palette.accent : palette.border}`,
+                                boxShadow: 'none',
                                 transition: 'background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease',
                             }}
                         >
@@ -239,10 +252,10 @@ const VendorDashboard = () => {
                                 alignItems: 'center',
                                 gap: '0.45rem',
                                 padding: '0.56rem 1rem',
-                                backgroundColor: serviceAccessAllowed ? '#D4AF37' : '#7f6a22',
-                                color: '#111111',
+                                backgroundColor: serviceAccessAllowed ? palette.accent : '#E5D2A0',
+                                color: palette.text,
                                 borderRadius: '8px',
-                                border: 'none',
+                                border: `1px solid ${palette.accent}`,
                                 fontWeight: 600,
                                 fontSize: '0.85rem',
                                 cursor: serviceAccessAllowed ? 'pointer' : 'not-allowed',
@@ -257,9 +270,9 @@ const VendorDashboard = () => {
                         type="button"
                         onClick={handleGoToVerification}
                         style={{
-                            border: '1px solid #3a3524',
-                            backgroundColor: '#171717',
-                            color: '#e5e5e5',
+                            border: `1px solid ${palette.border}`,
+                            backgroundColor: palette.card,
+                            color: palette.text,
                             borderRadius: '999px',
                             padding: '0.48rem 0.85rem',
                             fontSize: '0.82rem',
@@ -275,7 +288,7 @@ const VendorDashboard = () => {
                         </span>
                         <span>Profile</span>
                         {!isVerified && (
-                            <span style={{ color: '#8f8f8f', fontWeight: 600 }}>
+                            <span style={{ color: palette.textSecondary, fontWeight: 600 }}>
                                 {verificationLabel === 'Not Submitted' ? 'Verify' : verificationLabel}
                             </span>
                         )}
@@ -284,9 +297,9 @@ const VendorDashboard = () => {
                         type="button"
                         onClick={handleLogout}
                         style={{
-                            border: '1px solid #4a1f1f',
-                            backgroundColor: 'transparent',
-                            color: '#f0b2b2',
+                            border: `1px solid ${palette.rejected}`,
+                            backgroundColor: '#FEF2F2',
+                            color: palette.rejected,
                             borderRadius: '999px',
                             padding: '0.48rem 0.85rem',
                             fontSize: '0.82rem',
@@ -306,10 +319,10 @@ const VendorDashboard = () => {
             {/* Main Content */}
             <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem' }}>
                 {!serviceAccessAllowed && (
-                    <section style={{ margin: '0 0 1rem 0', border: '1px solid #3a3524', backgroundColor: '#171717', color: '#e5e5e5', borderRadius: '12px', padding: '0.9rem 1rem' }}>
-                        <strong style={{ color: '#D4AF37' }}>Service Access Locked.</strong>
+                    <section style={{ margin: '0 0 1rem 0', border: `1px solid ${palette.border}`, backgroundColor: palette.card, color: palette.text, borderRadius: '12px', padding: '0.9rem 1rem' }}>
+                        <strong style={{ color: palette.accent }}>Service Access Locked.</strong>
                         <span style={{ marginLeft: '0.5rem' }}>{serviceLockMessage}</span>
-                        <span style={{ marginLeft: '0.65rem', color: '#9a9a9a' }}>Current status: {verificationLabel}.</span>
+                        <span style={{ marginLeft: '0.65rem', color: palette.textSecondary }}>Current status: {verificationLabel}.</span>
                     </section>
                 )}
 
@@ -317,7 +330,7 @@ const VendorDashboard = () => {
                 {activeTab === 'vehicles' ? (
                     <div>
                         {/* Header with Title */}
-                        <h2 style={{ fontSize: '1.75rem', fontWeight: '700', color: '#fff', margin: '0 0 1.5rem 0' }}>Manage Vehicles</h2>
+                        <h2 style={{ fontSize: '1.75rem', fontWeight: '700', color: palette.text, margin: '0 0 1.5rem 0' }}>Manage Vehicles</h2>
 
                         {actionState.message && (
                             <div
@@ -326,9 +339,9 @@ const VendorDashboard = () => {
                                     padding: '0.75rem 1rem',
                                     borderRadius: '8px',
                                     fontSize: '0.9rem',
-                                    border: actionState.isError ? '1px solid #ef444460' : '1px solid #16a34a60',
+                                    border: actionState.isError ? `1px solid ${palette.rejected}60` : `1px solid ${palette.approved}60`,
                                     backgroundColor: actionState.isError ? '#ef444415' : '#16a34a15',
-                                    color: actionState.isError ? '#f87171' : '#4ade80',
+                                    color: actionState.isError ? palette.rejected : palette.approved,
                                 }}
                             >
                                 {actionState.message}
@@ -337,14 +350,14 @@ const VendorDashboard = () => {
 
                         {/* Empty State or Vehicle List */}
                         {loading ? (
-                            <div style={{ border: '2px dashed #444', borderRadius: '12px', padding: '4rem', textAlign: 'center' }}>
-                                <p style={{ color: '#a0a0a0', fontSize: '1.1rem' }}>Loading vehicles...</p>
+                            <div style={{ border: `2px dashed ${palette.border}`, backgroundColor: palette.card, borderRadius: '12px', padding: '4rem', textAlign: 'center' }}>
+                                <p style={{ color: palette.textSecondary, fontSize: '1.1rem' }}>Loading vehicles...</p>
                             </div>
                         ) : vehicles.length === 0 ? (
-                            <div style={{ border: '2px dashed #444', borderRadius: '12px', padding: '4rem', textAlign: 'center' }}>
-                                <Package size={48} style={{ margin: '0 auto 1rem', color: '#555', display: 'block' }} />
-                                <p style={{ color: '#a0a0a0', fontSize: '1.1rem' }}>You haven't added any vehicles yet.</p>
-                                <p style={{ color: '#666', fontSize: '0.9rem', marginTop: '0.5rem' }}>Click "Add New Vehicle" to get started</p>
+                            <div style={{ border: `2px dashed ${palette.border}`, backgroundColor: palette.card, borderRadius: '12px', padding: '4rem', textAlign: 'center' }}>
+                                <Package size={48} style={{ margin: '0 auto 1rem', color: palette.notSubmitted, display: 'block' }} />
+                                <p style={{ color: palette.textSecondary, fontSize: '1.1rem' }}>You haven't added any vehicles yet.</p>
+                                <p style={{ color: palette.textSecondary, fontSize: '0.9rem', marginTop: '0.5rem' }}>Click "Add New Vehicle" to get started</p>
                             </div>
                         ) : (
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
@@ -358,12 +371,12 @@ const VendorDashboard = () => {
                                         <div
                                             key={vehicle._id}
                                             style={{
-                                                backgroundColor: '#000', border: '1px solid #333',
+                                                backgroundColor: palette.card, border: `1px solid ${palette.border}`,
                                                 borderRadius: '12px', overflow: 'hidden',
                                                 transition: 'border-color 0.3s',
                                             }}
                                         >
-                                            <div style={{ aspectRatio: '16/9', backgroundColor: '#1a1a1a', overflow: 'hidden' }}>
+                                            <div style={{ aspectRatio: '16/9', backgroundColor: '#F1F5F9', overflow: 'hidden' }}>
                                                 <img
                                                     src={vehicle.image}
                                                     alt={title}
@@ -371,19 +384,19 @@ const VendorDashboard = () => {
                                                 />
                                             </div>
                                             <div style={{ padding: '1rem' }}>
-                                                <h3 style={{ fontSize: '1.2rem', fontWeight: '600', color: '#fff', marginBottom: '0.25rem' }}>
+                                                <h3 style={{ fontSize: '1.2rem', fontWeight: '600', color: palette.text, marginBottom: '0.25rem' }}>
                                                     {title}
                                                 </h3>
-                                                <p style={{ color: '#a0a0a0', fontSize: '0.875rem', marginBottom: '0.75rem' }}>{type}</p>
+                                                <p style={{ color: palette.textSecondary, fontSize: '0.875rem', marginBottom: '0.75rem' }}>{type}</p>
                                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
                                                     <div>
-                                                        <p style={{ color: '#888', fontSize: '0.75rem' }}>Price per day</p>
-                                                        <p style={{ color: '#d4af37', fontSize: '1.25rem', fontWeight: '700' }}>
+                                                        <p style={{ color: palette.textSecondary, fontSize: '0.75rem' }}>Price per day</p>
+                                                        <p style={{ color: palette.accent, fontSize: '1.25rem', fontWeight: '700' }}>
                                                             Rs. {Number(vehicle.pricePerDay || 0).toLocaleString()} / day
                                                         </p>
                                                     </div>
                                                     <div style={{ textAlign: 'right' }}>
-                                                        <p style={{ color: '#a0a0a0', fontSize: '0.875rem' }}>
+                                                        <p style={{ color: palette.textSecondary, fontSize: '0.875rem' }}>
                                                             {seats} seats • {fuel}
                                                         </p>
                                                     </div>
@@ -394,8 +407,8 @@ const VendorDashboard = () => {
                                                         disabled={!serviceAccessAllowed}
                                                         style={{
                                                             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                            gap: '0.5rem', padding: '0.5rem 0.75rem', border: '1px solid #d4af37',
-                                                            color: '#d4af37', borderRadius: '8px', backgroundColor: 'transparent',
+                                                            gap: '0.5rem', padding: '0.5rem 0.75rem', border: `1px solid ${palette.accent}`,
+                                                            color: '#A16207', borderRadius: '8px', backgroundColor: '#FFF8E1',
                                                             cursor: serviceAccessAllowed ? 'pointer' : 'not-allowed', fontSize: '0.875rem', transition: 'all 0.3s',
                                                             opacity: serviceAccessAllowed ? 1 : 0.65,
                                                         }}
@@ -407,8 +420,8 @@ const VendorDashboard = () => {
                                                         disabled={deletingVehicleId === vehicle._id || !serviceAccessAllowed}
                                                         style={{
                                                             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                            gap: '0.5rem', padding: '0.5rem 0.75rem', border: '1px solid #ef4444',
-                                                            color: '#ef4444', borderRadius: '8px', backgroundColor: 'transparent',
+                                                            gap: '0.5rem', padding: '0.5rem 0.75rem', border: `1px solid ${palette.rejected}`,
+                                                            color: palette.rejected, borderRadius: '8px', backgroundColor: '#FEF2F2',
                                                             cursor: deletingVehicleId === vehicle._id || !serviceAccessAllowed ? 'not-allowed' : 'pointer',
                                                             fontSize: '0.875rem', transition: 'all 0.3s',
                                                             opacity: deletingVehicleId === vehicle._id || !serviceAccessAllowed ? 0.7 : 1,
@@ -428,19 +441,19 @@ const VendorDashboard = () => {
                     <div>
                         {/* Bookings Header */}
                         <div style={{ marginBottom: '1.5rem' }}>
-                            <h2 style={{ fontSize: '1.75rem', fontWeight: '700', color: '#fff', margin: 0 }}>Customer Bookings</h2>
+                            <h2 style={{ fontSize: '1.75rem', fontWeight: '700', color: palette.text, margin: 0 }}>Customer Bookings</h2>
                         </div>
 
                         {/* Empty State or Booking List */}
                         {loading ? (
-                            <div style={{ border: '2px dashed #444', borderRadius: '12px', padding: '4rem', textAlign: 'center' }}>
-                                <p style={{ color: '#a0a0a0', fontSize: '1.1rem' }}>Loading bookings...</p>
+                            <div style={{ border: `2px dashed ${palette.border}`, backgroundColor: palette.card, borderRadius: '12px', padding: '4rem', textAlign: 'center' }}>
+                                <p style={{ color: palette.textSecondary, fontSize: '1.1rem' }}>Loading bookings...</p>
                             </div>
                         ) : bookings.length === 0 ? (
-                            <div style={{ border: '2px dashed #444', borderRadius: '12px', padding: '4rem', textAlign: 'center' }}>
-                                <Package size={48} style={{ margin: '0 auto 1rem', color: '#555', display: 'block' }} />
-                                <p style={{ color: '#a0a0a0', fontSize: '1.1rem' }}>No booking requests yet.</p>
-                                <p style={{ color: '#666', fontSize: '0.9rem', marginTop: '0.5rem' }}>
+                            <div style={{ border: `2px dashed ${palette.border}`, backgroundColor: palette.card, borderRadius: '12px', padding: '4rem', textAlign: 'center' }}>
+                                <Package size={48} style={{ margin: '0 auto 1rem', color: palette.notSubmitted, display: 'block' }} />
+                                <p style={{ color: palette.textSecondary, fontSize: '1.1rem' }}>No booking requests yet.</p>
+                                <p style={{ color: palette.textSecondary, fontSize: '0.9rem', marginTop: '0.5rem' }}>
                                     Customers will see your vehicles and can request bookings
                                 </p>
                             </div>
@@ -450,33 +463,33 @@ const VendorDashboard = () => {
                                     <div
                                         key={booking._id}
                                         style={{
-                                            backgroundColor: '#000', border: '1px solid #333',
+                                            backgroundColor: palette.card, border: `1px solid ${palette.border}`,
                                             borderRadius: '12px', padding: '1.5rem',
                                         }}
                                     >
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                                            <h3 style={{ color: '#fff', fontWeight: '600', margin: 0 }}>
+                                            <h3 style={{ color: palette.text, fontWeight: '600', margin: 0 }}>
                                                 {booking.vehicle?.title || booking.vehicle?.name}
                                             </h3>
                                             <span style={{
                                                 padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.8rem', fontWeight: '600',
-                                                backgroundColor: booking.status === 'Confirmed' ? '#16a34a33' : booking.status === 'Cancelled' ? '#dc262633' : '#d4af3733',
-                                                color: booking.status === 'Confirmed' ? '#4ade80' : booking.status === 'Cancelled' ? '#f87171' : '#d4af37',
+                                                backgroundColor: booking.status === 'Confirmed' ? '#22C55E1A' : booking.status === 'Cancelled' ? '#EF44441A' : '#F59E0B1A',
+                                                color: booking.status === 'Confirmed' ? palette.approved : booking.status === 'Cancelled' ? palette.rejected : palette.underReview,
                                             }}>
                                                 {booking.status}
                                             </span>
                                         </div>
-                                        <p style={{ color: '#a0a0a0', fontSize: '0.875rem', margin: '0.25rem 0' }}>
+                                        <p style={{ color: palette.textSecondary, fontSize: '0.875rem', margin: '0.25rem 0' }}>
                                             Customer: {booking.customer?.name} ({booking.customer?.email})
                                         </p>
-                                        <p style={{ color: '#a0a0a0', fontSize: '0.875rem', margin: '0.25rem 0' }}>
+                                        <p style={{ color: palette.textSecondary, fontSize: '0.875rem', margin: '0.25rem 0' }}>
                                             From: {new Date(booking.startDate).toLocaleDateString()} —
                                             To: {new Date(booking.endDate).toLocaleDateString()}
                                         </p>
-                                        <p style={{ color: '#a0a0a0', fontSize: '0.875rem', margin: '0.25rem 0' }}>
+                                        <p style={{ color: palette.textSecondary, fontSize: '0.875rem', margin: '0.25rem 0' }}>
                                             Days: {Number(booking.totalDays || 0) || '--'}
                                         </p>
-                                        <p style={{ color: '#d4af37', fontWeight: '600', margin: '0.5rem 0 0' }}>
+                                        <p style={{ color: palette.accent, fontWeight: '600', margin: '0.5rem 0 0' }}>
                                             Total: Rs. {Number(booking.totalPrice || 0).toLocaleString()}
                                         </p>
                                     </div>

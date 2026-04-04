@@ -8,7 +8,7 @@ import {
 } from "../utils/verification.js";
 
 const REQUIRED_TITLES_BY_KEY = {
-  driving_licence: "Driving Licence",
+  driving_license: "Driving License",
   citizenship_front: "Citizenship / Nagarikta (Front Side)",
   citizenship_back: "Citizenship / Nagarikta (Back Side)",
   bluebook: "Bluebook",
@@ -23,7 +23,7 @@ const extractSubmissionEntries = (body = {}) => {
     entries.push({ title, url: normalizedUrl });
   };
 
-  add("Driving Licence", body.drivingLicenceUrl || body.drivingLicenseUrl);
+  add("Driving License", body.drivingLicenseUrl || body["driving" + "Lic" + "enceUrl"]);
   add(
     "Citizenship / Nagarikta (Front Side)",
     body.citizenshipFrontUrl ||

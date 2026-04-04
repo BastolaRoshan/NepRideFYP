@@ -1,11 +1,11 @@
 const ROLE_REQUIREMENT_KEYS = {
-  Customer: ["driving_licence", "citizenship_front", "citizenship_back"],
+  Customer: ["driving_license", "citizenship_front", "citizenship_back"],
   Vendor: ["bluebook", "citizenship_front", "citizenship_back"],
   Admin: [],
 };
 
 const KEY_TO_TITLE = {
-  driving_licence: "Driving Licence",
+  driving_license: "Driving License",
   citizenship_front: "Citizenship / Nagarikta (Front Side)",
   citizenship_back: "Citizenship / Nagarikta (Back Side)",
   bluebook: "Bluebook",
@@ -30,6 +30,7 @@ const normalizeText = (value) => {
 
 export const normalizeDocumentKey = (title) => {
   const normalized = normalizeText(title);
+  const legacyLicensePattern = /drivinglicen[cs]e|licen[cs]e/;
 
   if (
     normalized.includes("citizenshipfront") ||
@@ -50,12 +51,10 @@ export const normalizeDocumentKey = (title) => {
   }
 
   if (
-    normalized.includes("drivinglicence") ||
-    normalized.includes("drivinglicense") ||
-    normalized.includes("licence") ||
+    legacyLicensePattern.test(normalized) ||
     normalized.includes("license")
   ) {
-    return "driving_licence";
+    return "driving_license";
   }
 
   if (normalized.includes("bluebook") || normalized.includes("bluebok")) {

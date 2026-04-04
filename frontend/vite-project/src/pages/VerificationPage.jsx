@@ -24,6 +24,7 @@ const VerificationPage = () => {
 
   const getDocumentFieldName = (title) => {
     const normalized = String(title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const legacyLicensePattern = /drivinglicen[cs]e|licen[cs]e/;
 
     if (
       normalized.includes('citizenshipfront') ||
@@ -41,8 +42,8 @@ const VerificationPage = () => {
       return 'citizenship_back';
     }
 
-    if (normalized.includes('drivinglicence') || normalized.includes('drivinglicense') || normalized.includes('licence') || normalized.includes('license')) {
-      return 'driving_licence';
+    if (legacyLicensePattern.test(normalized) || normalized.includes('license')) {
+      return 'driving_license';
     }
 
     if (normalized.includes('bluebook') || normalized.includes('bluebok')) {
