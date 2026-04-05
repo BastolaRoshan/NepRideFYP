@@ -87,6 +87,14 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  resetPasswordToken: {
+    type: String,
+    default: "",
+  },
+  resetPasswordExpireAt: {
+    type: Number,
+    default: 0,
+  },
   documents: {
     type: [userDocumentSchema],
     default: [],

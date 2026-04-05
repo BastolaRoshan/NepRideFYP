@@ -5,10 +5,11 @@ import cookieParser from "cookie-parser";
 import path from "path";
 import connectDB from "./config/mongodb.js"; // Default import
 import authRouter from "./routes/authRoutes.js";
-import userRouter from "./routes/userRoute.js";
+import userRouter from "./routes/userRoutes.js";
 import vehicleRoutes from "./routes/vehicleRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import passwordRoutes from "./routes/passwordRoutes.js";
 import { cancelExpiredPendingBookings } from "./controllers/bookingController.js";
 
 const app = express();
@@ -36,6 +37,7 @@ connectDB(); // ✅ ok (but see async version below)
 app.get("/", (req, res) => res.send("NepRide backend is running"));
 
 app.use("/api/auth", authRouter);
+app.use("/api/password", passwordRoutes);
 app.use("/api/user", userRouter);
 app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/bookings", bookingRoutes);

@@ -105,6 +105,26 @@
     line-height: 1.5;
 }
 
+.form-success {
+    border: 1px solid rgba(74, 222, 128, 0.35);
+    background: rgba(20, 83, 45, 0.32);
+    color: #bbf7d0;
+    border-radius: 14px;
+    padding: 0.9rem 1rem;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.form-info {
+    border: 1px solid rgba(212, 175, 55, 0.35);
+    background: rgba(161, 98, 7, 0.22);
+    color: #fde68a;
+    border-radius: 14px;
+    padding: 0.9rem 1rem;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
 .auth-form {
     display: flex;
     flex-direction: column;

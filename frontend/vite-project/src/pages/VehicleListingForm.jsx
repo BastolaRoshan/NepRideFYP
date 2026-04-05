@@ -17,6 +17,17 @@ const initialFormState = {
 const vehicleTypeOptions = ['Car', 'Bike', 'EV'];
 const fuelTypeOptions = ['Petrol', 'Diesel', 'Electric'];
 
+const palette = {
+  bg: '#F3F4F6',
+  card: '#FFFFFF',
+  border: '#E5E7EB',
+  accent: '#D4AF37',
+  text: '#111827',
+  textSecondary: '#6B7280',
+  muted: '#9CA3AF',
+  danger: '#EF4444',
+};
+
 const VehicleListingForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -95,19 +106,19 @@ const VehicleListingForm = () => {
     marginTop: '0.5rem',
     width: '100%',
     borderRadius: '8px',
-    border: '1px solid #333',
-    backgroundColor: '#0f0f0f',
+    border: `1px solid ${palette.border}`,
+    backgroundColor: palette.card,
     padding: '0.75rem 1rem',
     fontSize: '0.875rem',
-    color: '#fff',
+    color: palette.text,
     outline: 'none',
-    transition: 'border-color 0.3s',
+    transition: 'border-color 0.3s, box-shadow 0.3s',
     boxSizing: 'border-box',
   };
 
   const inputErrorStyle = {
     ...inputStyle,
-    border: '1px solid #ef4444',
+    border: `1px solid ${palette.danger}`,
   };
 
   const getInputStyle = (fieldName) =>
@@ -233,13 +244,13 @@ const VehicleListingForm = () => {
     }
   };
 
-  const labelStyle = { fontSize: '0.875rem', fontWeight: '500', color: '#a0a0a0' };
-  const errorTextStyle = { marginTop: '0.25rem', fontSize: '0.75rem', color: '#ef4444' };
+  const labelStyle = { fontSize: '0.875rem', fontWeight: '600', color: palette.textSecondary };
+  const errorTextStyle = { marginTop: '0.25rem', fontSize: '0.75rem', color: palette.danger };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#0f0f0f', color: '#fff' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: palette.bg, color: palette.text }}>
       {/* Navbar */}
-      <nav style={{ backgroundColor: '#000', borderBottom: '1px solid #333', padding: '1rem 1.5rem' }}>
+      <nav style={{ backgroundColor: palette.card, borderBottom: `1px solid ${palette.border}`, padding: '1rem 1.5rem' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <button
             type="button"
@@ -247,30 +258,30 @@ const VehicleListingForm = () => {
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: '2.5rem', height: '2.5rem', borderRadius: '8px',
-              border: '1px solid #d4af37', backgroundColor: 'transparent',
-              color: '#d4af37', cursor: 'pointer', transition: 'all 0.3s',
+              border: `1px solid ${palette.accent}`, backgroundColor: '#FFF8E1',
+              color: '#8A6A00', cursor: 'pointer', transition: 'all 0.3s',
             }}
-            onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#d4af37'; e.currentTarget.style.color = '#000'; }}
-            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#d4af37'; }}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#FDE68A'; e.currentTarget.style.color = '#7A5D00'; }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#FFF8E1'; e.currentTarget.style.color = '#8A6A00'; }}
             aria-label="Go back"
           >
             <ArrowLeft size={18} />
           </button>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#d4af37', margin: 0 }}>NepRide</h1>
-          <span style={{ color: '#fff', fontSize: '1rem' }}>{isEditMode ? 'Edit Vehicle' : 'Add Vehicle'}</span>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: '700', color: palette.accent, margin: 0 }}>NepRide</h1>
+          <span style={{ color: palette.text, fontSize: '1rem', fontWeight: '600' }}>{isEditMode ? 'Edit Vehicle' : 'Add Vehicle'}</span>
         </div>
       </nav>
 
       {/* Main Content */}
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem' }}>
         <div style={{
-          backgroundColor: '#000', border: '1px solid #333',
-          borderRadius: '12px', padding: '2rem',
+          backgroundColor: palette.card, border: `1px solid ${palette.border}`,
+          borderRadius: '14px', padding: '2rem', boxShadow: '0 2px 10px rgba(17, 24, 39, 0.04)',
         }}>
-          <h2 style={{ fontSize: '1.75rem', fontWeight: '700', color: '#fff', margin: '0 0 0.5rem' }}>
+          <h2 style={{ fontSize: '1.75rem', fontWeight: '700', color: palette.text, margin: '0 0 0.5rem' }}>
             {isEditMode ? 'Edit Vehicle Listing' : 'Vehicle Listing Form'}
           </h2>
-          <p style={{ color: '#a0a0a0', fontSize: '0.9rem', marginBottom: '2rem' }}>
+          <p style={{ color: palette.textSecondary, fontSize: '0.9rem', marginBottom: '2rem' }}>
             {isEditMode
               ? 'Update your vehicle details and save the latest listing information.'
               : 'Add a new vehicle to NepRide with complete listing details.'}
@@ -279,8 +290,8 @@ const VehicleListingForm = () => {
           {!serviceAccessAllowed && (
             <div style={{
               marginBottom: '1.5rem', padding: '0.85rem 1rem',
-              borderRadius: '8px', border: '1px solid #5b4a1e',
-              backgroundColor: '#2b2210', color: '#ffd782',
+              borderRadius: '8px', border: '1px solid #F2D48A',
+              backgroundColor: '#FFFAEB', color: '#8A6A00',
               fontSize: '0.9rem', fontWeight: '600',
             }}>
               {serviceLockMessage} Current status: {normalizeVerificationStatus(verificationStatus)}.
@@ -312,8 +323,8 @@ const VehicleListingForm = () => {
                     value={formData.title} onChange={handleChange}
                     placeholder="Example: Hyundai Creta 2024"
                     style={getInputStyle('title')}
-                    onFocus={e => { e.currentTarget.style.borderColor = '#d4af37'; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = errors.title ? '#ef4444' : '#333'; }}
+                    onFocus={e => { e.currentTarget.style.borderColor = palette.accent; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.2)'; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = errors.title ? palette.danger : palette.border; e.currentTarget.style.boxShadow = 'none'; }}
                   />
                   {errors.title && <p style={errorTextStyle}>{errors.title}</p>}
                 </div>
@@ -326,8 +337,8 @@ const VehicleListingForm = () => {
                     value={formData.overview} onChange={handleChange}
                     placeholder="Briefly describe vehicle features, comfort, and condition."
                     style={{ ...getInputStyle('overview'), resize: 'none' }}
-                    onFocus={e => { e.currentTarget.style.borderColor = '#d4af37'; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = errors.overview ? '#ef4444' : '#333'; }}
+                    onFocus={e => { e.currentTarget.style.borderColor = palette.accent; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.2)'; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = errors.overview ? palette.danger : palette.border; e.currentTarget.style.boxShadow = 'none'; }}
                   />
                   {errors.overview && <p style={errorTextStyle}>{errors.overview}</p>}
                 </div>
@@ -340,8 +351,8 @@ const VehicleListingForm = () => {
                     value={formData.model} onChange={handleChange}
                     placeholder="Example: SX (O)"
                     style={getInputStyle('model')}
-                    onFocus={e => { e.currentTarget.style.borderColor = '#d4af37'; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = errors.model ? '#ef4444' : '#333'; }}
+                    onFocus={e => { e.currentTarget.style.borderColor = palette.accent; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.2)'; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = errors.model ? palette.danger : palette.border; e.currentTarget.style.boxShadow = 'none'; }}
                   />
                   {errors.model && <p style={errorTextStyle}>{errors.model}</p>}
                 </div>
@@ -354,8 +365,8 @@ const VehicleListingForm = () => {
                     value={formData.seatCapacity} onChange={handleChange}
                     placeholder="Enter seat capacity"
                     style={getInputStyle('seatCapacity')}
-                    onFocus={e => { e.currentTarget.style.borderColor = '#d4af37'; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = errors.seatCapacity ? '#ef4444' : '#333'; }}
+                    onFocus={e => { e.currentTarget.style.borderColor = palette.accent; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.2)'; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = errors.seatCapacity ? palette.danger : palette.border; e.currentTarget.style.boxShadow = 'none'; }}
                   />
                   {errors.seatCapacity && <p style={errorTextStyle}>{errors.seatCapacity}</p>}
                 </div>
@@ -368,8 +379,8 @@ const VehicleListingForm = () => {
                     value={formData.speed} onChange={handleChange}
                     placeholder="Enter top speed in kmph"
                     style={getInputStyle('speed')}
-                    onFocus={e => { e.currentTarget.style.borderColor = '#d4af37'; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = errors.speed ? '#ef4444' : '#333'; }}
+                    onFocus={e => { e.currentTarget.style.borderColor = palette.accent; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.2)'; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = errors.speed ? palette.danger : palette.border; e.currentTarget.style.boxShadow = 'none'; }}
                   />
                   {errors.speed && <p style={errorTextStyle}>{errors.speed}</p>}
                 </div>
@@ -382,12 +393,12 @@ const VehicleListingForm = () => {
                     style={{
                       marginTop: '0.5rem', display: 'flex', alignItems: 'center',
                       justifyContent: 'center', gap: '0.5rem', padding: '0.75rem 1rem',
-                      borderRadius: '8px', border: errors.image ? '1px dashed #ef4444' : '1px dashed #d4af3780',
-                      backgroundColor: '#0f0f0f', color: '#d4af37',
+                      borderRadius: '8px', border: errors.image ? `1px dashed ${palette.danger}` : '1px dashed #D8B95A',
+                      backgroundColor: '#FFFBEB', color: '#8A6A00',
                       cursor: 'pointer', fontSize: '0.875rem', transition: 'all 0.3s',
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#d4af3715'; e.currentTarget.style.borderColor = '#d4af37'; }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#0f0f0f'; e.currentTarget.style.borderColor = errors.image ? '#ef4444' : '#d4af3780'; }}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#FDE68A55'; e.currentTarget.style.borderColor = palette.accent; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#FFFBEB'; e.currentTarget.style.borderColor = errors.image ? palette.danger : '#D8B95A'; }}
                   >
                     <UploadCloud size={18} /> Choose Vehicle Image
                   </label>
@@ -395,7 +406,7 @@ const VehicleListingForm = () => {
                   {errors.image && <p style={errorTextStyle}>{errors.image}</p>}
 
                   {imagePreview && (
-                    <div style={{ marginTop: '0.75rem', borderRadius: '8px', border: '1px solid #333', overflow: 'hidden' }}>
+                    <div style={{ marginTop: '0.75rem', borderRadius: '8px', border: `1px solid ${palette.border}`, overflow: 'hidden' }}>
                       <img src={imagePreview} alt="Vehicle Preview" style={{ width: '100%', height: '11rem', objectFit: 'cover' }} />
                     </div>
                   )}
@@ -411,8 +422,8 @@ const VehicleListingForm = () => {
                     id="vehicleType" name="vehicleType"
                     value={formData.vehicleType} onChange={handleChange}
                     style={{ ...getInputStyle('vehicleType'), cursor: 'pointer' }}
-                    onFocus={e => { e.currentTarget.style.borderColor = '#d4af37'; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = errors.vehicleType ? '#ef4444' : '#333'; }}
+                    onFocus={e => { e.currentTarget.style.borderColor = palette.accent; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.2)'; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = errors.vehicleType ? palette.danger : palette.border; e.currentTarget.style.boxShadow = 'none'; }}
                   >
                     <option value="">Select vehicle type</option>
                     {vehicleTypeOptions.map((option) => (
@@ -430,8 +441,8 @@ const VehicleListingForm = () => {
                     value={formData.pricePerDay} onChange={handleChange}
                     placeholder="Enter daily rental price"
                     style={getInputStyle('pricePerDay')}
-                    onFocus={e => { e.currentTarget.style.borderColor = '#d4af37'; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = errors.pricePerDay ? '#ef4444' : '#333'; }}
+                    onFocus={e => { e.currentTarget.style.borderColor = palette.accent; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.2)'; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = errors.pricePerDay ? palette.danger : palette.border; e.currentTarget.style.boxShadow = 'none'; }}
                   />
                   {errors.pricePerDay && <p style={errorTextStyle}>{errors.pricePerDay}</p>}
                 </div>
@@ -443,8 +454,8 @@ const VehicleListingForm = () => {
                     id="fuelType" name="fuelType"
                     value={formData.fuelType} onChange={handleChange}
                     style={{ ...getInputStyle('fuelType'), cursor: 'pointer' }}
-                    onFocus={e => { e.currentTarget.style.borderColor = '#d4af37'; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = errors.fuelType ? '#ef4444' : '#333'; }}
+                    onFocus={e => { e.currentTarget.style.borderColor = palette.accent; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.2)'; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = errors.fuelType ? palette.danger : palette.border; e.currentTarget.style.boxShadow = 'none'; }}
                   >
                     <option value="">Select fuel type</option>
                     {fuelTypeOptions.map((option) => (
@@ -456,11 +467,11 @@ const VehicleListingForm = () => {
 
                 {/* Listing Tips */}
                 <div style={{
-                  borderRadius: '8px', border: '1px solid #d4af3740',
-                  backgroundColor: '#d4af3710', padding: '1rem',
-                  fontSize: '0.875rem', color: '#a0a0a0',
+                  borderRadius: '8px', border: '1px solid #F2D48A',
+                  backgroundColor: '#FFFAEB', padding: '1rem',
+                  fontSize: '0.875rem', color: palette.textSecondary,
                 }}>
-                  <p style={{ fontWeight: '600', color: '#d4af37', marginBottom: '0.5rem' }}>Listing Tips</p>
+                  <p style={{ fontWeight: '700', color: '#8A6A00', marginBottom: '0.5rem' }}>Listing Tips</p>
                   <p style={{ lineHeight: '1.6', margin: 0 }}>
                     Add a clear image and a concise overview for better conversion on your vendor listings.
                   </p>
@@ -476,13 +487,13 @@ const VehicleListingForm = () => {
                 style={{
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                   gap: '0.5rem', minWidth: '220px', padding: '0.85rem 2.5rem',
-                  backgroundColor: submitState.loading || !serviceAccessAllowed ? '#a08830' : '#d4af37',
-                  color: '#000', borderRadius: '8px', border: 'none',
+                  backgroundColor: submitState.loading || !serviceAccessAllowed ? '#E5D2A0' : palette.accent,
+                  color: palette.text, borderRadius: '8px', border: `1px solid ${palette.accent}`,
                   fontWeight: '700', fontSize: '1rem', cursor: submitState.loading || !serviceAccessAllowed ? 'not-allowed' : 'pointer',
                   transition: 'all 0.3s', opacity: submitState.loading || !serviceAccessAllowed ? 0.7 : 1,
                 }}
-                onMouseEnter={e => { if (!submitState.loading && serviceAccessAllowed) e.currentTarget.style.backgroundColor = '#c9a227'; }}
-                onMouseLeave={e => { if (!submitState.loading && serviceAccessAllowed) e.currentTarget.style.backgroundColor = '#d4af37'; }}
+                onMouseEnter={e => { if (!submitState.loading && serviceAccessAllowed) e.currentTarget.style.backgroundColor = '#C9A227'; }}
+                onMouseLeave={e => { if (!submitState.loading && serviceAccessAllowed) e.currentTarget.style.backgroundColor = palette.accent; }}
               >
                 {submitState.loading ? (
                   <><Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> Submitting...</>
@@ -497,10 +508,10 @@ const VehicleListingForm = () => {
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        select option { background-color: #1a1a1a; color: #fff; }
-        input::placeholder, textarea::placeholder { color: #555; }
+        select option { background-color: #ffffff; color: #111827; }
+        input::placeholder, textarea::placeholder { color: #9CA3AF; }
         input[type=number]::-webkit-inner-spin-button,
-        input[type=number]::-webkit-outer-spin-button { opacity: 0.3; }
+        input[type=number]::-webkit-outer-spin-button { opacity: 0.5; }
       `}</style>
     </div>
   );

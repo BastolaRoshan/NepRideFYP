@@ -11,6 +11,9 @@ import AdminDashboard from './pages/AdminDashboard';
 import PaymentPage from './pages/PaymentPage';
 import BookingConfirmed from './pages/BookingConfirmed';
 import VerificationPage from './pages/VerificationPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import OtpVerificationPage from './pages/OtpVerificationPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import './App.css';
 
 function App() {
@@ -20,6 +23,9 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/verify-reset-otp" element={<OtpVerificationPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route
           path="/verification"
           element={
