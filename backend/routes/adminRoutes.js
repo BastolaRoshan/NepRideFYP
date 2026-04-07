@@ -12,6 +12,7 @@ import {
   updateAdminUser,
   updateAdminUserDocument,
   updateUserVerification,
+  updateUserAccountStatus,
 } from "../controllers/adminController.js";
 import { authorizeRoles, protect } from "../middleware/roleAuth.js";
 
@@ -25,6 +26,7 @@ router.get("/summary", getAdminSummary);
 router.get("/users", getAdminUsers);
 router.put("/users/:id", updateAdminUser);
 router.put("/users/:id/verification", updateUserVerification);
+router.put("/users/:id/account-status", updateUserAccountStatus);
 router.delete("/users/:id", deleteAdminUser);
 
 router.get("/vehicles", getAdminVehicles);

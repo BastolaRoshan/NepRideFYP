@@ -1,6 +1,7 @@
 import bookingModel from "../models/bookingModel.js";
 import userModel from "../models/userModel.js";
 import vehicleModel from "../models/vehicleModel.js";
+import { sendVerificationStatusUpdateEmail } from "../services/emailService.js";
 import {
   getVerificationAccessPayload,
   normalizeRole,
@@ -32,7 +33,24 @@ const normalizeDocumentStatus = (value) => {
 const toSafeUser = (userDoc) => {
   const user = userDoc?.toObject ? userDoc.toObject() : userDoc;
   const documents = Array.isArray(user?.documents) ? user.documents : [];
-  const verificationPayload = getVerificationAccessPayload(user);
+  
+  // If admin has reviewed and set a status, use that. Otherwise calculate from documents
+  const hasBeenReviewed = Boolean(user?.verificationReviewedAt);
+  let verificationStatus = user?.verificationStatus || "NotSubmitted";
+  let isServiceAccessAllowed = user?.isVerified || false;
+  let verification = null;
+  
+  if (!hasBeenReviewed) {
+    // Auto-calculate based on documents if not reviewed by admin
+    const verificationPayload = getVerificationAccessPayload(user);
+    verificationStatus = verificationPayload.verificationStatus;
+    isServiceAccessAllowed = verificationPayload.isServiceAccessAllowed;
+    verification = verificationPayload.verification;
+  } else {
+    // If reviewed, still calculate verification details but use stored status
+    const verificationPayload = getVerificationAccessPayload(user);
+    verification = verificationPayload.verification;
+  }
 
   return {
     _id: user._id,
@@ -41,14 +59,15 @@ const toSafeUser = (userDoc) => {
     phone: user.phone,
     role: normalizeRole(user.role) || "Customer",
     isVerified: Boolean(user.isVerified),
-    verificationStatus: verificationPayload.verificationStatus,
-    isServiceAccessAllowed: verificationPayload.isServiceAccessAllowed,
-    verification: verificationPayload.verification,
+    verificationStatus,
+    isServiceAccessAllowed,
+    verification,
     verificationNote: user.verificationNote || "",
     verificationSubmittedAt: user.verificationSubmittedAt || null,
     verificationReviewedAt: user.verificationReviewedAt || null,
     documentsCount: documents.length,
     documents,
+    accountStatus: user?.accountStatus || "active",
   };
 };
 
@@ -456,14 +475,22 @@ export const updateUserVerification = async (req, res) => {
     }
 
     // Validate verification status
-    const validStatuses = ["NotSubmitted", "UnderReview", "Approved", "Rejected"];
+    const validStatuses = ["UnderReview", "Approved", "Rejected"];
     if (verificationStatus && !validStatuses.includes(verificationStatus)) {
       return res.json({ success: false, message: "Invalid verification status" });
     }
 
+    // When admin explicitly sets a status, preserve it (don't auto-sync)
     if (verificationStatus !== undefined) {
       user.verificationStatus = verificationStatus;
       user.verificationReviewedAt = new Date();
+      
+      // Set isVerified based on the explicit status
+      if (verificationStatus === "Approved") {
+        user.isVerified = true;
+      } else {
+        user.isVerified = false;
+      }
     }
 
     if (verificationNote !== undefined) {
@@ -479,16 +506,57 @@ export const updateUserVerification = async (req, res) => {
       user.isVerified = true;
     }
 
-    // Re-sync verification state to ensure consistency
-    syncUserVerificationState(user);
-
+    // DO NOT call syncUserVerificationState - preserve admin's explicit choice
     await user.save();
+
+    if (verificationStatus === "Approved" || verificationStatus === "Rejected") {
+      try {
+        await sendVerificationStatusUpdateEmail({
+          email: user.email,
+          name: user.name,
+          status: verificationStatus,
+          note: user.verificationNote || "",
+        });
+      } catch (emailError) {
+        console.error("[verification-email] Failed to send status update email:", emailError.message);
+      }
+    }
 
     const updatedUser = await userModel.findById(userId).select("-password -verifyOtp -resetOtp");
 
     return res.json({
       success: true,
       message: "User verification updated",
+      user: toSafeUser(updatedUser),
+    });
+  } catch (error) {
+    return res.json({ success: false, message: error.message });
+  }
+};
+
+export const updateUserAccountStatus = async (req, res) => {
+  try {
+    const { accountStatus } = req.body;
+    const userId = req.params.id;
+
+    const validStatuses = ["active", "suspended", "blocked"];
+    if (!validStatuses.includes(accountStatus)) {
+      return res.json({ success: false, message: "Invalid account status" });
+    }
+
+    const user = await userModel.findById(userId);
+    if (!user) {
+      return res.json({ success: false, message: "User not found" });
+    }
+
+    user.accountStatus = accountStatus;
+    await user.save();
+
+    const updatedUser = await userModel.findById(userId).select("-password -verifyOtp -resetOtp");
+
+    return res.json({
+      success: true,
+      message: "User account status updated",
       user: toSafeUser(updatedUser),
     });
   } catch (error) {

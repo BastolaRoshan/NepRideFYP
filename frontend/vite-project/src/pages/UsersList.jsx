@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Eye } from 'lucide-react';
 
 const palette = {
@@ -8,13 +8,20 @@ const palette = {
   accent: '#D4AF37',
   text: '#111827',
   textSecondary: '#6B7280',
-  approved: '#22C55E',
+  approved: '#0f5c3a',
   underReview: '#F59E0B',
   rejected: '#EF4444',
   notSubmitted: '#9CA3AF',
 };
 
-const UsersList = ({ users, onViewDocuments }) => {
+const UsersList = ({
+  users,
+  onViewDocuments,
+  accountStatusDrafts = {},
+  onUpdateAccountStatus,
+  onSaveAccountStatus,
+  savingAccountStatus = {},
+}) => {
   const [filter, setFilter] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -25,35 +32,33 @@ const UsersList = ({ users, onViewDocuments }) => {
     { key: 'Verified', label: 'Verified' },
     { key: 'UnderReview', label: 'Under Review' },
     { key: 'Rejected', label: 'Rejected' },
-    { key: 'NotSubmitted', label: 'Not Submitted' },
+    { key: 'NotSubmitted', label: 'Unverified' },
   ];
 
   const filteredUsers = useMemo(() => {
     let result = users;
 
-    // Apply role/verification filter
     if (filter === 'Customer') {
-      result = result.filter((u) => u.role === 'Customer');
+      result = result.filter((user) => user.role === 'Customer');
     } else if (filter === 'Vendor') {
-      result = result.filter((u) => u.role === 'Vendor');
+      result = result.filter((user) => user.role === 'Vendor');
     } else if (filter === 'Verified') {
-      result = result.filter((u) => u.verificationStatus === 'Approved');
+      result = result.filter((user) => user.verificationStatus === 'Approved');
     } else if (filter === 'UnderReview') {
-      result = result.filter((u) => u.verificationStatus === 'UnderReview');
+      result = result.filter((user) => user.verificationStatus === 'UnderReview');
     } else if (filter === 'Rejected') {
-      result = result.filter((u) => u.verificationStatus === 'Rejected');
+      result = result.filter((user) => user.verificationStatus === 'Rejected');
     } else if (filter === 'NotSubmitted') {
-      result = result.filter((u) => u.verificationStatus === 'NotSubmitted');
+      result = result.filter((user) => user.verificationStatus === 'NotSubmitted');
     }
 
-    // Apply search filter
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       result = result.filter(
-        (u) =>
-          u.name.toLowerCase().includes(term) ||
-          u.email.toLowerCase().includes(term) ||
-          u.phone.includes(term)
+        (user) =>
+          user.name.toLowerCase().includes(term) ||
+          user.email.toLowerCase().includes(term) ||
+          user.phone.includes(term)
       );
     }
 
@@ -63,15 +68,14 @@ const UsersList = ({ users, onViewDocuments }) => {
   const getVerificationStatusColor = (status) => {
     switch (status) {
       case 'Approved':
-        return { bg: '#22C55E1A', text: palette.approved, border: '#22C55E66' };
+        return { backgroundColor: '#BBF7D0', color: palette.approved, borderColor: '#0f5c3a' };
       case 'UnderReview':
-        return { bg: '#F59E0B1A', text: palette.underReview, border: '#F59E0B66' };
+        return { backgroundColor: '#F59E0B1A', color: palette.underReview, borderColor: '#F59E0B66' };
       case 'Rejected':
-        return { bg: '#EF44441A', text: palette.rejected, border: '#EF444466' };
+        return { backgroundColor: '#EF44441A', color: palette.rejected, borderColor: '#EF444466' };
       case 'NotSubmitted':
-        return { bg: '#9CA3AF1A', text: palette.notSubmitted, border: '#9CA3AF66' };
       default:
-        return { bg: '#9CA3AF1A', text: palette.notSubmitted, border: '#9CA3AF66' };
+        return { backgroundColor: '#F3F4F6', color: palette.textSecondary, borderColor: '#D1D5DB' };
     }
   };
 
@@ -88,10 +92,17 @@ const UsersList = ({ users, onViewDocuments }) => {
     }
   };
 
-  const getAccessStatusColor = (allowed) => {
-    return allowed
-      ? { bg: '#22C55E1A', text: palette.approved, border: '#22C55E66' }
-      : { bg: '#EF44441A', text: palette.rejected, border: '#EF444466' };
+  const getAccountStatusColor = (status) => {
+    switch (status) {
+      case 'active':
+        return { bg: '#22C55E1A', text: '#15803d', border: '#22C55E66' };
+      case 'suspended':
+        return { bg: '#F59E0B1A', text: '#92400e', border: '#F59E0B66' };
+      case 'blocked':
+        return { bg: '#EF44441A', text: '#991b1b', border: '#EF444466' };
+      default:
+        return { bg: '#22C55E1A', text: '#15803d', border: '#22C55E66' };
+    }
   };
 
   const cardStyle = {
@@ -125,22 +136,21 @@ const UsersList = ({ users, onViewDocuments }) => {
 
   return (
     <div style={{ display: 'grid', gap: '1rem' }}>
-      {/* Filters Section */}
       <div style={{ ...cardStyle, display: 'grid', gap: '0.75rem' }}>
         <div>
           <label style={{ color: palette.textSecondary, fontSize: '0.8rem', display: 'block', marginBottom: '0.35rem' }}>
             Filter Users
           </label>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {filters.map((f) => (
+            {filters.map((item) => (
               <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
+                key={item.key}
+                onClick={() => setFilter(item.key)}
                 style={{
                   borderRadius: '6px',
-                  border: filter === f.key ? `1px solid ${palette.accent}` : `1px solid ${palette.border}`,
-                  backgroundColor: filter === f.key ? '#FFF8E1' : palette.card,
-                  color: filter === f.key ? '#A16207' : palette.textSecondary,
+                  border: filter === item.key ? `1px solid ${palette.accent}` : `1px solid ${palette.border}`,
+                  backgroundColor: filter === item.key ? '#FFF8E1' : palette.card,
+                  color: filter === item.key ? '#A16207' : palette.textSecondary,
                   padding: '0.4rem 0.65rem',
                   cursor: 'pointer',
                   fontSize: '0.8rem',
@@ -148,7 +158,7 @@ const UsersList = ({ users, onViewDocuments }) => {
                   transition: 'all 0.2s',
                 }}
               >
-                {f.label}
+                {item.label}
               </button>
             ))}
           </div>
@@ -162,18 +172,16 @@ const UsersList = ({ users, onViewDocuments }) => {
             type="text"
             placeholder="Search..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(event) => setSearchTerm(event.target.value)}
             style={inputStyle}
           />
         </div>
       </div>
 
-      {/* Results Count */}
       <div style={{ color: palette.textSecondary, fontSize: '0.85rem' }}>
         Showing {filteredUsers.length} of {users.length} users
       </div>
 
-      {/* Users Table */}
       {filteredUsers.length === 0 ? (
         <div style={{ ...cardStyle, textAlign: 'center', color: palette.textSecondary, padding: '2rem' }}>
           No users found matching the selected filters.
@@ -196,35 +204,23 @@ const UsersList = ({ users, onViewDocuments }) => {
           >
             <thead>
               <tr style={{ borderBottom: `1px solid ${palette.border}`, backgroundColor: palette.bg }}>
-                <th style={{ padding: '0.75rem', textAlign: 'left', color: palette.text, fontWeight: 600 }}>
-                  Name
-                </th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', color: palette.text, fontWeight: 600 }}>
-                  Email
-                </th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', color: palette.text, fontWeight: 600 }}>
-                  Role
-                </th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', color: palette.text, fontWeight: 600 }}>
-                  Verification
-                </th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', color: palette.text, fontWeight: 600 }}>
-                  Access
-                </th>
-                <th style={{ padding: '0.75rem', textAlign: 'center', color: palette.text, fontWeight: 600 }}>
-                  Docs
-                </th>
-                <th style={{ padding: '0.75rem', textAlign: 'center', color: palette.text, fontWeight: 600 }}>
-                  Actions
-                </th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', color: palette.text, fontWeight: 600 }}>Name</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', color: palette.text, fontWeight: 600 }}>Email</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', color: palette.text, fontWeight: 600 }}>Role</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', color: palette.text, fontWeight: 600 }}>Verification</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', color: palette.text, fontWeight: 600 }}>Account Status</th>
+                <th style={{ padding: '0.75rem', textAlign: 'center', color: palette.text, fontWeight: 600 }}>Docs</th>
+                <th style={{ padding: '0.75rem', textAlign: 'center', color: palette.text, fontWeight: 600 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredUsers.map((user) => {
                 const roleColor = getRoleColor(user.role);
                 const verificationColor = getVerificationStatusColor(user.verificationStatus);
-                const accessColor = getAccessStatusColor(user.isServiceAccessAllowed);
+                const currentAccountStatus = accountStatusDrafts[user._id] || user.accountStatus || 'active';
+                const accountStatusColor = getAccountStatusColor(currentAccountStatus);
                 const documentCount = Array.isArray(user.documents) ? user.documents.length : 0;
+                const isDirty = currentAccountStatus !== (user.accountStatus || 'active');
 
                 return (
                   <tr
@@ -234,87 +230,87 @@ const UsersList = ({ users, onViewDocuments }) => {
                       backgroundColor: palette.card,
                       transition: 'background-color 0.2s',
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
+                    onMouseEnter={(event) => (event.currentTarget.style.backgroundColor = '#F8FAFC')}
+                    onMouseLeave={(event) => (event.currentTarget.style.backgroundColor = '#FFFFFF')}
                   >
-                    {/* Name */}
                     <td style={{ padding: '0.75rem', borderRight: `1px solid ${palette.border}` }}>
                       <div>
                         <p style={{ margin: 0, fontWeight: 600, color: palette.text }}>{user.name}</p>
-                        <p style={{ margin: '0.2rem 0 0', color: palette.textSecondary, fontSize: '0.75rem' }}>
-                          {user.phone}
-                        </p>
+                        <p style={{ margin: '0.2rem 0 0', color: palette.textSecondary, fontSize: '0.75rem' }}>{user.phone}</p>
                       </div>
                     </td>
 
-                    {/* Email */}
                     <td style={{ padding: '0.75rem', borderRight: `1px solid ${palette.border}`, color: palette.textSecondary }}>
                       {user.email}
                     </td>
 
-                    {/* Role */}
                     <td style={{ padding: '0.75rem', borderRight: `1px solid ${palette.border}` }}>
-                      <div
-                        style={{
-                          ...roleColor,
-                          ...badgeStyle,
-                          display: 'inline-flex',
-                          marginRight: 0,
-                          marginBottom: 0,
-                        }}
-                      >
+                      <div style={{ ...roleColor, ...badgeStyle, display: 'inline-flex', marginRight: 0, marginBottom: 0 }}>
                         {user.role}
                       </div>
                     </td>
 
-                    {/* Verification Status */}
                     <td style={{ padding: '0.75rem', borderRight: `1px solid ${palette.border}` }}>
-                      <div
-                        style={{
-                          ...verificationColor,
-                          ...badgeStyle,
-                          display: 'inline-flex',
-                          marginRight: 0,
-                          marginBottom: 0,
-                        }}
-                      >
+                      <div style={{ ...verificationColor, ...badgeStyle, display: 'inline-flex', marginRight: 0, marginBottom: 0 }}>
                         {user.verificationStatus === 'Approved'
                           ? 'Verified'
                           : user.verificationStatus === 'UnderReview'
                             ? 'Under Review'
                             : user.verificationStatus === 'Rejected'
                               ? 'Rejected'
-                              : 'Not Submitted'}
+                              : 'Unverified'}
                       </div>
                     </td>
 
-                    {/* Access Status */}
                     <td style={{ padding: '0.75rem', borderRight: `1px solid ${palette.border}` }}>
-                      <div
-                        style={{
-                          ...accessColor,
-                          ...badgeStyle,
-                          display: 'inline-flex',
-                          marginRight: 0,
-                          marginBottom: 0,
-                        }}
-                      >
-                        {user.isServiceAccessAllowed ? 'Allowed' : 'Blocked'}
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <select
+                          value={currentAccountStatus}
+                          onChange={(event) => onUpdateAccountStatus && onUpdateAccountStatus(user._id, event.target.value)}
+                          style={{
+                            borderRadius: '6px',
+                            border: `1px solid ${palette.border}`,
+                            backgroundColor: palette.card,
+                            color: palette.text,
+                            padding: '0.35rem 0.5rem',
+                            fontSize: '0.75rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <option value="active">Active</option>
+                          <option value="suspended">Suspended</option>
+                          <option value="blocked">Blocked</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => onSaveAccountStatus && onSaveAccountStatus(user._id)}
+                          disabled={savingAccountStatus[user._id]}
+                          style={{
+                            borderRadius: '4px',
+                            border: `1px solid ${accountStatusColor.border}`,
+                            backgroundColor: accountStatusColor.bg,
+                            color: accountStatusColor.text,
+                            padding: '0.3rem 0.55rem',
+                            cursor: savingAccountStatus[user._id] ? 'not-allowed' : 'pointer',
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            opacity: savingAccountStatus[user._id] ? 0.6 : 1,
+                          }}
+                        >
+                          {savingAccountStatus[user._id]
+                            ? 'Saving...'
+                            : user.accountStatus === 'blocked' && currentAccountStatus === 'active'
+                              ? 'Unblock'
+                              : 'Save'}
+                        </button>
                       </div>
                     </td>
 
-                    {/* Document Count */}
                     <td style={{ padding: '0.75rem', textAlign: 'center', borderRight: `1px solid ${palette.border}`, color: palette.accent, fontWeight: 700 }}>
                       {documentCount}
                     </td>
 
-                    {/* Actions */}
-                    <td
-                      style={{
-                        padding: '0.75rem',
-                        textAlign: 'center',
-                      }}
-                    >
+                    <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                       <button
                         onClick={() => onViewDocuments(user)}
                         style={{
@@ -331,11 +327,11 @@ const UsersList = ({ users, onViewDocuments }) => {
                           fontWeight: 500,
                           transition: 'all 0.2s',
                         }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#FDE68A';
+                        onMouseEnter={(event) => {
+                          event.currentTarget.style.backgroundColor = '#FDE68A';
                         }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = '#FFF8E1';
+                        onMouseLeave={(event) => {
+                          event.currentTarget.style.backgroundColor = '#FFF8E1';
                         }}
                         title={`View ${documentCount} document${documentCount !== 1 ? 's' : ''}`}
                       >

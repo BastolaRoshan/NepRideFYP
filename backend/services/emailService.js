@@ -1,7 +1,9 @@
 import mailer from "../config/mailer.js";
 import {
+  getDocumentSubmittedEmailTemplate,
   getAccountVerificationOtpTemplate,
   getPasswordResetOtpTemplate,
+  getVerificationStatusUpdateEmailTemplate,
   getWelcomeEmailTemplate,
 } from "../utils/mailTemplates.js";
 
@@ -33,6 +35,22 @@ export const sendVerificationOtpEmail = async ({ email, otp }) => {
 
 export const sendPasswordResetOtpEmail = async ({ email, otp }) => {
   const template = getPasswordResetOtpTemplate({ otp });
+  await sendEmail({
+    to: email,
+    ...template,
+  });
+};
+
+export const sendDocumentSubmittedEmail = async ({ email, name }) => {
+  const template = getDocumentSubmittedEmailTemplate({ name });
+  await sendEmail({
+    to: email,
+    ...template,
+  });
+};
+
+export const sendVerificationStatusUpdateEmail = async ({ email, name, status, note }) => {
+  const template = getVerificationStatusUpdateEmailTemplate({ name, status, note });
   await sendEmail({
     to: email,
     ...template,

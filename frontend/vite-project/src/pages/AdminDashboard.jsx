@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Users, Car, CreditCard, FileText, Trash2, Save } from 'lucide-react';
+import { LogOut, Users, Car, CreditCard, Trash2, Save } from 'lucide-react';
 import UsersList from './UsersList';
 import DocumentPreviewModal from './DocumentPreviewModal';
 
@@ -8,7 +8,6 @@ const tabs = [
   { key: 'users', label: 'Users', icon: Users },
   { key: 'vehicles', label: 'Vehicle Listings', icon: Car },
   { key: 'payments', label: 'Payments', icon: CreditCard },
-  { key: 'documents', label: 'User Documents', icon: FileText },
 ];
 
 const userRoleOptions = ['Customer', 'Vendor', 'Admin'];
@@ -61,6 +60,8 @@ const AdminDashboard = () => {
   const [paymentDrafts, setPaymentDrafts] = useState({});
   const [documentDrafts, setDocumentDrafts] = useState({});
   const [savingUsers, setSavingUsers] = useState({});
+  const [accountStatusDrafts, setAccountStatusDrafts] = useState({});
+  const [savingAccountStatus, setSavingAccountStatus] = useState({});
 
   const [loading, setLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState({ message: '', isError: false });
@@ -138,6 +139,13 @@ const AdminDashboard = () => {
     }, {});
 
     setUserDrafts(draftMap);
+
+    const accountStatusMap = fetchedUsers.reduce((acc, user) => {
+      acc[user._id] = user.accountStatus || 'active';
+      return acc;
+    }, {});
+
+    setAccountStatusDrafts(accountStatusMap);
 
     setNewDocumentForm((prev) => {
       if (prev.userId || fetchedUsers.length === 0) {
@@ -314,6 +322,46 @@ const AdminDashboard = () => {
       handleRefresh();
     } catch (error) {
       setActionMessage({ message: error.message || 'Failed to delete user', isError: true });
+    }
+  };
+
+  const updateAccountStatusDraft = (userId, status) => {
+    setAccountStatusDrafts((prev) => ({
+      ...prev,
+      [userId]: status,
+    }));
+  };
+
+  const saveAccountStatus = async (userId) => {
+    const status = accountStatusDrafts[userId];
+    if (!status) return;
+
+    setSavingAccountStatus((prev) => ({ ...prev, [userId]: true }));
+
+    try {
+      const response = await fetch(`/api/admin/users/${userId}/account-status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ accountStatus: status }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to update account status');
+      }
+
+      setUsers((prev) => prev.map((user) => (user._id === userId ? data.user : user)));
+      setAccountStatusDrafts((prev) => ({
+        ...prev,
+        [userId]: data.user?.accountStatus || status,
+      }));
+      setActionMessage({ message: 'Account status updated successfully.', isError: false });
+      handleRefresh();
+    } catch (error) {
+      setActionMessage({ message: error.message || 'Failed to update account status', isError: true });
+    } finally {
+      setSavingAccountStatus((prev) => ({ ...prev, [userId]: false }));
     }
   };
 
@@ -650,6 +698,10 @@ const AdminDashboard = () => {
             <UsersList
               users={users}
               onViewDocuments={setSelectedUserForDocs}
+              accountStatusDrafts={accountStatusDrafts}
+              onUpdateAccountStatus={updateAccountStatusDraft}
+              onSaveAccountStatus={saveAccountStatus}
+              savingAccountStatus={savingAccountStatus}
             />
           </>
         )}

@@ -22,7 +22,14 @@ const DocumentPreviewModal = ({
   actionMessage,
 }) => {
   const [selectedDocumentId, setSelectedDocumentId] = useState(String(user?.documents?.[0]?._id || ''));
-  const [verificationStatus, setVerificationStatus] = useState(user?.verificationStatus || 'NotSubmitted');
+  const [verificationStatus, setVerificationStatus] = useState(() => {
+    const status = user?.verificationStatus;
+    // If status is NotSubmitted or not set, default to UnderReview
+    if (!status || status === 'NotSubmitted') {
+      return 'UnderReview';
+    }
+    return status;
+  });
   const [verificationNote, setVerificationNote] = useState(user?.verificationNote || '');
   const [allowAccess, setAllowAccess] = useState(user?.isServiceAccessAllowed || false);
   const [documentSearch, setDocumentSearch] = useState('');
@@ -255,9 +262,6 @@ const DocumentPreviewModal = ({
                         <p style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: palette.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {doc.title}
                         </p>
-                        <p style={{ margin: '0.2rem 0 0', fontSize: '0.9rem', color: getStatusColor(doc.status), fontWeight: 600 }}>
-                          Status: {doc.status}
-                        </p>
                       </div>
                     </div>
 
@@ -274,14 +278,14 @@ const DocumentPreviewModal = ({
           style={{
             padding: '1.1rem',
             display: 'grid',
-            gridTemplateRows: '1fr auto',
+            gridTemplateRows: 'auto 1fr',
             gap: '0.8rem',
             overflowY: 'auto',
             backgroundColor: palette.card,
           }}
         >
           {/* Document Preview */}
-          <div style={{ display: 'grid', gap: '1rem', overflowY: 'auto' }}>
+          <div style={{ display: 'grid', gap: '1rem' }}>
             {selectedDocument ? (
               <div style={{ display: 'grid', gap: '1rem' }}>
                 <div>
@@ -307,7 +311,7 @@ const DocumentPreviewModal = ({
                     border: `1px solid ${palette.border}`,
                     borderRadius: '8px',
                     padding: '0.85rem',
-                    minHeight: '280px',
+                    maxHeight: '280px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -383,19 +387,89 @@ const DocumentPreviewModal = ({
           {/* Verification Controls */}
           <div style={{ display: 'grid', gap: '0.75rem', borderTop: `1px solid ${palette.border}`, paddingTop: '0.9rem' }}>
             <div>
-              <label style={{ color: palette.text, fontSize: '0.88rem', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>
+              <label style={{ color: palette.text, fontSize: '0.88rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>
                 Verification Status
               </label>
-              <select
-                value={verificationStatus}
-                onChange={(e) => setVerificationStatus(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="NotSubmitted">Not Submitted</option>
-                <option value="UnderReview">Under Review</option>
-                <option value="Approved">Approved</option>
-                <option value="Rejected">Rejected</option>
-              </select>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                <button
+                  onClick={() => setVerificationStatus('UnderReview')}
+                  style={{
+                    padding: '0.6rem',
+                    borderRadius: '6px',
+                    border: verificationStatus === 'UnderReview' ? `2px solid ${palette.underReview}` : `1px solid ${palette.border}`,
+                    backgroundColor: verificationStatus === 'UnderReview' ? '#F59E0B15' : palette.card,
+                    color: palette.text,
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: '0.85rem',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (verificationStatus !== 'UnderReview') {
+                      e.currentTarget.style.backgroundColor = '#F59E0B08';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (verificationStatus !== 'UnderReview') {
+                      e.currentTarget.style.backgroundColor = palette.card;
+                    }
+                  }}
+                >
+                  Under Review
+                </button>
+                <button
+                  onClick={() => setVerificationStatus('Approved')}
+                  style={{
+                    padding: '0.6rem',
+                    borderRadius: '6px',
+                    border: verificationStatus === 'Approved' ? `2px solid ${palette.approved}` : `1px solid ${palette.border}`,
+                    backgroundColor: verificationStatus === 'Approved' ? '#22C55E15' : palette.card,
+                    color: palette.text,
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: '0.85rem',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (verificationStatus !== 'Approved') {
+                      e.currentTarget.style.backgroundColor = '#22C55E08';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (verificationStatus !== 'Approved') {
+                      e.currentTarget.style.backgroundColor = palette.card;
+                    }
+                  }}
+                >
+                  Approved
+                </button>
+                <button
+                  onClick={() => setVerificationStatus('Rejected')}
+                  style={{
+                    padding: '0.6rem',
+                    borderRadius: '6px',
+                    border: verificationStatus === 'Rejected' ? `2px solid ${palette.rejected}` : `1px solid ${palette.border}`,
+                    backgroundColor: verificationStatus === 'Rejected' ? '#EF444415' : palette.card,
+                    color: palette.text,
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: '0.85rem',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (verificationStatus !== 'Rejected') {
+                      e.currentTarget.style.backgroundColor = '#EF444408';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (verificationStatus !== 'Rejected') {
+                      e.currentTarget.style.backgroundColor = palette.card;
+                    }
+                  }}
+                >
+                  Rejected
+                </button>
+              </div>
             </div>
 
             <div>

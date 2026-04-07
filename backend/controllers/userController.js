@@ -1,4 +1,5 @@
 import userModel from "../models/userModel.js";
+import { sendDocumentSubmittedEmail } from "../services/emailService.js";
 import {
   getRequiredDocumentTitles,
   getVerificationAccessPayload,
@@ -125,7 +126,7 @@ export const getAllUser = async (req, res) => {
   try {
     const userId = req.userId || req.user?._id || req.body?.userId;
     const user = await userModel.findById(userId).select(
-      "name email phone role isVerified verificationStatus verificationNote verificationSubmittedAt verificationReviewedAt documents"
+      "name email phone role isVerified verificationStatus verificationNote verificationSubmittedAt verificationReviewedAt documents accountStatus"
     );
     if (!user) {
       return res.json({
@@ -144,6 +145,7 @@ export const getAllUser = async (req, res) => {
         phone: user.phone,
         role: normalizeRole(user.role),
         isVerified: user.isVerified,
+        accountStatus: user.accountStatus || "active",
         ...verificationState,
       },
     });
@@ -250,6 +252,15 @@ export const submitVerificationDocuments = async (req, res) => {
 
     syncUserVerificationState(user);
     await user.save();
+
+    try {
+      await sendDocumentSubmittedEmail({
+        email: user.email,
+        name: user.name,
+      });
+    } catch (emailError) {
+      console.error("[verification-email] Failed to send submission email:", emailError.message);
+    }
 
     return res.json({
       success: true,

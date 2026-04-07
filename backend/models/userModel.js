@@ -99,6 +99,11 @@ const userSchema = new mongoose.Schema({
     type: [userDocumentSchema],
     default: [],
   },
+  accountStatus: {
+    type: String,
+    enum: ["active", "suspended", "blocked"],
+    default: "active",
+  },
 });
 
 const userModel = mongoose.models.user || mongoose.model("user", userSchema);

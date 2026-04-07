@@ -165,6 +165,8 @@ export const evaluateUserVerification = (user) => {
 export const getVerificationAccessPayload = (user) => {
   const verification = evaluateUserVerification(user);
   const isAdmin = normalizeRole(user?.role) === "Admin";
+  const accountStatus = String(user?.accountStatus || "active").toLowerCase();
+  const accountAllowsService = accountStatus !== "suspended" && accountStatus !== "blocked";
 
   let verificationStatus = "NotSubmitted";
 
@@ -180,7 +182,7 @@ export const getVerificationAccessPayload = (user) => {
 
   return {
     verificationStatus,
-    isServiceAccessAllowed: isAdmin || verification.isApproved,
+    isServiceAccessAllowed: accountAllowsService && (isAdmin || verification.isApproved),
     verification,
   };
 };
@@ -190,7 +192,7 @@ export const syncUserVerificationState = (user) => {
 
   if (verificationStatus === "Approved" && isServiceAccessAllowed) {
     user.verificationStatus = "Approved";
-    user.isVerified = true;
+    user.isVerified = String(user?.accountStatus || "active").toLowerCase() !== "suspended";
     user.verificationReviewedAt = new Date();
     return;
   }

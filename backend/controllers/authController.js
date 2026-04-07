@@ -85,6 +85,14 @@ export const login = async (req, res) => {
         message: "User does not exist",
       });
     }
+
+    if (user.accountStatus === "blocked") {
+      return res.json({
+        success: false,
+        message: "Your account has been blocked. Please contact support.",
+      });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.json({
@@ -115,6 +123,7 @@ export const login = async (req, res) => {
         role: normalizedRole,
         verificationStatus,
         isServiceAccessAllowed,
+        accountStatus: user.accountStatus || "active",
         requiredDocuments: verification.requiredDocuments,
         missingDocuments: verification.missingDocuments,
       },
@@ -154,7 +163,7 @@ export const isAuthenticated = async (req, res) => {
       return res.json({ success: false, message: "User ID not found in token" });
     }
     const user = await userModel.findById(userId).select(
-      "name email role verificationStatus documents isVerified verificationSubmittedAt verificationReviewedAt verificationNote"
+      "name email role verificationStatus documents isVerified verificationSubmittedAt verificationReviewedAt verificationNote accountStatus"
     );
     if (!user) {
       return res.json({ success: false, message: "User not found" });
@@ -176,6 +185,7 @@ export const isAuthenticated = async (req, res) => {
         role: normalizedRole,
         verificationStatus,
         isServiceAccessAllowed,
+        accountStatus: user.accountStatus || "active",
       },
     });
   } catch (error) {
