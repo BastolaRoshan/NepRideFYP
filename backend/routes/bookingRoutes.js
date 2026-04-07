@@ -17,12 +17,13 @@ router.use(protect);
 // Customer routes
 router.post("/", requireApprovedVerification, authorizeRoles("Customer", "Admin"), createBooking);
 router.get("/my-bookings", authorizeRoles("Customer", "Admin"), getCustomerBookings);
+// Vendor routes
+router.get("/vendor-bookings", authorizeRoles("Vendor", "Admin"), getVendorBookings);
+
 router.get("/:id", authorizeRoles("Customer", "Vendor", "Admin"), getBookingById);
 router.post("/:id/confirm", requireApprovedVerification, authorizeRoles("Customer", "Admin"), confirmBookingPayment);
 router.patch("/:id/cancel", requireApprovedVerification, authorizeRoles("Customer", "Vendor", "Admin"), cancelBooking);
 
-// Vendor routes
-router.get("/vendor-bookings", authorizeRoles("Vendor", "Admin"), getVendorBookings);
 router.put("/:id/status", requireApprovedVerification, authorizeRoles("Vendor", "Admin"), updateBookingStatus);
 
 export default router;

@@ -4,7 +4,9 @@ import { getVerificationAccessPayload, normalizeRole } from "../utils/verificati
 
 // Middleware to protect routes (Authentication)
 export const protect = async (req, res, next) => {
-    const { token } = req.cookies;
+    const authHeader = String(req.headers.authorization || "");
+    const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    const token = bearerToken || req.cookies?.token;
 
     if (!token) {
         return res.json({

@@ -1,4 +1,5 @@
 import bookingModel from "../models/bookingModel.js";
+import feedbackModel from "../models/feedbackModel.js";
 import userModel from "../models/userModel.js";
 import vehicleModel from "../models/vehicleModel.js";
 import { sendVerificationStatusUpdateEmail } from "../services/emailService.js";
@@ -558,6 +559,32 @@ export const updateUserAccountStatus = async (req, res) => {
       success: true,
       message: "User account status updated",
       user: toSafeUser(updatedUser),
+    });
+  } catch (error) {
+    return res.json({ success: false, message: error.message });
+  }
+};
+
+export const getAdminFeedbackMessages = async (req, res) => {
+  try {
+    const feedback = await feedbackModel
+      .find()
+      .sort({ createdAt: -1 })
+      .populate("customer", "name email phone role");
+
+    return res.json({
+      success: true,
+      count: feedback.length,
+      feedback: feedback.map((item) => ({
+        _id: item._id,
+        fullName: item.fullName,
+        email: item.email,
+        phone: item.phone,
+        subject: item.subject,
+        message: item.message,
+        createdAt: item.createdAt,
+        customer: item.customer || null,
+      })),
     });
   } catch (error) {
     return res.json({ success: false, message: error.message });

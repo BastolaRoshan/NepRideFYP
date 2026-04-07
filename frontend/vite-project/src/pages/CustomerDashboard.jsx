@@ -1,8 +1,12 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Search, Clock, Users, Gauge, Fuel, ArrowRight, RefreshCcw, BadgeCheck, Car } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { Search, Clock, Clock3, Users, Gauge, Fuel, Wallet, ArrowRight, RefreshCcw, ShieldCheck, BadgeCheck, Send, Mail, Phone } from 'lucide-react';
 import '../styles/Home.css';
 import BookingModal from '../components/BookingModal';
+import CustomerPortalHeader from '../components/CustomerPortalHeader';
+import { apiFetch } from '../utils/apiFetch';
+import { clearSessionAuth, getSessionToken, getStoredServiceAccessAllowed, getStoredUserName, getStoredVerificationStatus, setSessionAuth } from '../utils/sessionAuth';
 
 const formatCountdown = (remainingSeconds) => {
     const safeSeconds = Math.max(0, remainingSeconds);
@@ -13,8 +17,19 @@ const formatCountdown = (remainingSeconds) => {
 
 const CustomerDashboard = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+
+    const resolveActiveView = (pathname, stateView) => {
+        const allowed = ['dashboard', 'vehicles', 'bookings', 'about', 'contact', 'profile'];
+        if (allowed.includes(stateView)) return stateView;
+        if (String(pathname || '').endsWith('/about')) return 'about';
+        if (String(pathname || '').endsWith('/contact')) return 'contact';
+        if (String(pathname || '').endsWith('/profile')) return 'profile';
+        return 'dashboard';
+    };
+
     const [vehicles, setVehicles] = useState([]);
-    const [activeView, setActiveView] = useState('dashboard');
+    const [activeView, setActiveView] = useState(resolveActiveView(location.pathname, location.state?.activeView));
     const [searchQuery, setSearchQuery] = useState('');
     const [loadingVehicles, setLoadingVehicles] = useState(true);
     const [vehicleError, setVehicleError] = useState('');
@@ -24,16 +39,14 @@ const CustomerDashboard = () => {
     const [bookingModal, setBookingModal] = useState(null);
     const [currentTime, setCurrentTime] = useState(Date.now());
     const [bookingActionLoadingId, setBookingActionLoadingId] = useState('');
-    const [verificationStatus, setVerificationStatus] = useState(localStorage.getItem('verificationStatus') || 'NotSubmitted');
-    const [serviceAccessAllowed, setServiceAccessAllowed] = useState(localStorage.getItem('isServiceAccessAllowed') === 'true');
+    const [verificationStatus, setVerificationStatus] = useState(getStoredVerificationStatus());
+    const [serviceAccessAllowed, setServiceAccessAllowed] = useState(getStoredServiceAccessAllowed());
     const [serviceNotice, setServiceNotice] = useState('');
-    const [userName] = useState(localStorage.getItem('userName') || 'Customer');
-
-    useEffect(() => {
-        fetchVehicles();
-        fetchCustomerBookings();
-        fetchVerificationStatus();
-    }, []);
+    const [userName] = useState(getStoredUserName() || 'Customer');
+    const [contactForm, setContactForm] = useState({ fullName: '', email: '', phone: '', subject: '', message: '' });
+    const [contactErrors, setContactErrors] = useState({});
+    const [contactStatus, setContactStatus] = useState({ type: '', message: '' });
+    const [submittingContact, setSubmittingContact] = useState(false);
 
     const normalizeVerificationStatus = (status) => {
         if (status === 'UnderReview') return 'Under Review';
@@ -41,11 +54,10 @@ const CustomerDashboard = () => {
         return status || 'Not Submitted';
     };
 
-    const fetchVerificationStatus = async () => {
+    const fetchVerificationStatus = useCallback(async () => {
         try {
-            const response = await fetch('/api/user/verification-status', {
+            const response = await apiFetch('/api/user/verification-status', {
                 method: 'GET',
-                credentials: 'include',
             });
 
             const data = await response.json();
@@ -57,8 +69,12 @@ const CustomerDashboard = () => {
             const nextAccessAllowed = Boolean(data?.verification?.isServiceAccessAllowed);
             setVerificationStatus(nextStatus);
             setServiceAccessAllowed(nextAccessAllowed);
-            localStorage.setItem('verificationStatus', nextStatus);
-            localStorage.setItem('isServiceAccessAllowed', nextAccessAllowed ? 'true' : 'false');
+            setSessionAuth({
+                token: getSessionToken(),
+                verificationStatus: nextStatus,
+                isServiceAccessAllowed: nextAccessAllowed,
+                userName,
+            });
 
             if (!nextAccessAllowed) {
                 setServiceNotice('Services are locked until your account is verified by admin.');
@@ -68,7 +84,13 @@ const CustomerDashboard = () => {
         } catch {
             // keep fallback local state if API request fails
         }
-    };
+    }, [userName]);
+
+    useEffect(() => {
+        fetchVehicles();
+        fetchCustomerBookings();
+        fetchVerificationStatus();
+    }, [fetchVerificationStatus]);
 
     const filteredVehicles = useMemo(() => {
         if (!searchQuery.trim()) {
@@ -88,9 +110,8 @@ const CustomerDashboard = () => {
             setLoadingVehicles(true);
             setVehicleError('');
 
-            const response = await fetch('/api/vehicles/', {
+            const response = await apiFetch('/api/vehicles/', {
                 method: 'GET',
-                credentials: 'include'
             });
 
             const data = await response.json();
@@ -114,9 +135,8 @@ const CustomerDashboard = () => {
             setLoadingBookings(true);
             setBookingsError('');
 
-            const response = await fetch('/api/bookings/my-bookings', {
+            const response = await apiFetch('/api/bookings/my-bookings', {
                 method: 'GET',
-                credentials: 'include',
             });
 
             const data = await response.json();
@@ -133,19 +153,9 @@ const CustomerDashboard = () => {
         }
     };
 
-    const handleSwitchToVehicles = () => {
-        setActiveView('vehicles');
-    };
-
-    const handleSwitchToBookings = () => {
-        setActiveView('bookings');
-        fetchCustomerBookings();
-    };
-
-    const handleSwitchToDashboard = () => {
-        setActiveView('dashboard');
-        fetchCustomerBookings();
-    };
+    useEffect(() => {
+        setActiveView(resolveActiveView(location.pathname, location.state?.activeView));
+    }, [location.pathname, location.state]);
 
     const calculateBookingStats = () => {
         const stats = {
@@ -173,22 +183,84 @@ const CustomerDashboard = () => {
 
     const serviceLockMessage = 'Services are locked until your account is verified by admin.';
 
-    const navTabs = [
-        { label: 'Dashboard', view: 'dashboard' },
-        { label: 'Vehicle', view: 'vehicles' },
-        { label: 'My Bookings', view: 'bookings' },
-    ];
-
-    const isVerified = ['verified', 'approved'].includes(String(verificationStatus).toLowerCase());
     const verificationLabel = normalizeVerificationStatus(verificationStatus);
     const isServiceLocked = !serviceAccessAllowed;
 
     const handleGoToVerification = () => {
-        navigate('/verification');
+        setActiveView('profile');
+        navigate('/customer-dashboard/profile', { state: { activeView: 'profile' } });
     };
 
     const handleLockedAction = () => {
         setServiceNotice(serviceLockMessage);
+    };
+
+    const handleContactChange = (event) => {
+        const { name, value } = event.target;
+        setContactForm((prev) => ({ ...prev, [name]: value }));
+        setContactErrors((prev) => ({ ...prev, [name]: '' }));
+        setContactStatus({ type: '', message: '' });
+    };
+
+    const validateContactForm = (values) => {
+        const nextErrors = {};
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const phoneRegex = /^\d{10}$/;
+
+        if (!values.fullName.trim()) nextErrors.fullName = 'Full name is required.';
+        if (!values.email.trim()) nextErrors.email = 'Email is required.';
+        else if (!emailRegex.test(values.email.trim())) nextErrors.email = 'Enter a valid email address.';
+
+        const phoneValue = values.phone.replace(/\D/g, '');
+        if (!phoneValue) nextErrors.phone = 'Phone number is required.';
+        else if (!phoneRegex.test(phoneValue)) nextErrors.phone = 'Phone number must be 10 digits.';
+
+        if (!values.subject.trim()) nextErrors.subject = 'Subject is required.';
+        if (!values.message.trim()) nextErrors.message = 'Message is required.';
+        else if (values.message.trim().length < 15) nextErrors.message = 'Message should be at least 15 characters.';
+
+        return nextErrors;
+    };
+
+    const handleContactSubmit = async (event) => {
+        event.preventDefault();
+        const validationErrors = validateContactForm(contactForm);
+
+        if (Object.keys(validationErrors).length > 0) {
+            setContactErrors(validationErrors);
+            setContactStatus({ type: 'error', message: 'Please fix the highlighted fields and try again.' });
+            return;
+        }
+
+        try {
+            setSubmittingContact(true);
+            const payload = {
+                fullName: contactForm.fullName.trim(),
+                email: contactForm.email.trim(),
+                phone: contactForm.phone.replace(/\D/g, ''),
+                subject: contactForm.subject.trim(),
+                message: contactForm.message.trim(),
+            };
+
+            const response = await apiFetch('/api/user/contact-feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || 'Failed to send your message. Please try again.');
+            }
+
+            setContactStatus({ type: 'success', message: 'Message sent successfully.' });
+            setContactForm({ fullName: '', email: '', phone: '', subject: '', message: '' });
+            setContactErrors({});
+        } catch (error) {
+            setContactStatus({ type: 'error', message: error.message || 'Failed to send your message. Please try again.' });
+        } finally {
+            setSubmittingContact(false);
+        }
     };
 
     useEffect(() => {
@@ -203,14 +275,13 @@ const CustomerDashboard = () => {
 
     const handleLogout = async () => {
         try {
-            const response = await fetch('/api/auth/logout', {
+            const response = await globalThis.fetch('/api/auth/logout', {
                 method: 'POST',
-                credentials: 'include'
+                credentials: 'include',
             });
             const data = await response.json();
             if (data.success) {
-                localStorage.removeItem('userRole');
-                localStorage.removeItem('isAuthenticated');
+                clearSessionAuth();
                 navigate('/login');
             }
         } catch (err) {
@@ -251,10 +322,9 @@ const CustomerDashboard = () => {
         try {
             setBookingActionLoadingId(bookingId);
 
-            const response = await fetch(`/api/bookings/${bookingId}/cancel`, {
+            const response = await apiFetch(`/api/bookings/${bookingId}/cancel`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify({ reason: 'Cancelled from my bookings page' }),
             });
 
@@ -272,112 +342,17 @@ const CustomerDashboard = () => {
         }
     };
 
+    const customerActiveTab = activeView === 'dashboard' || activeView === 'vehicles' || activeView === 'bookings' || activeView === 'about' || activeView === 'contact' ? activeView : '';
+
     return (
         <div className="home-container" style={{ minHeight: '100vh', backgroundColor: '#111111', color: '#ffffff', display: 'block' }}>
-            <header
-                className="home-header"
-                style={{
-                    backgroundColor: '#111111',
-                    borderBottom: '1px solid #D4AF37',
-                    padding: '1rem 1.5rem 0.9rem',
-                    display: 'grid',
-                    gridTemplateColumns: '1fr auto 1fr',
-                    alignItems: 'center',
-                    gap: '1rem',
-                }}
-            >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
-                        <Car size={20} color="#D4AF37" />
-                        <span style={{ color: '#D4AF37', fontSize: '1.5rem', fontWeight: 800, letterSpacing: '0.02em' }}>NepRide</span>
-                    </div>
-                </div>
-
-                <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {navTabs.map((tab) => {
-                        const isActive = activeView === tab.view;
-                        return (
-                            <button
-                                key={tab.view}
-                                type="button"
-                                onClick={
-                                    tab.view === 'dashboard'
-                                        ? handleSwitchToDashboard
-                                        : tab.view === 'vehicles'
-                                            ? handleSwitchToVehicles
-                                            : handleSwitchToBookings
-                                }
-                                style={{
-                                    border: 'none',
-                                    borderRadius: '999px',
-                                    padding: '0.72rem 1.05rem',
-                                    backgroundColor: isActive ? '#D4AF37' : 'transparent',
-                                    color: isActive ? '#111111' : '#d9d9d9',
-                                    fontSize: '0.92rem',
-                                    fontWeight: 700,
-                                    letterSpacing: '0.01em',
-                                    cursor: 'pointer',
-                                    boxShadow: isActive ? 'inset 0 -2px 0 #b38b1d' : 'none',
-                                    transition: 'background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease',
-                                }}
-                            >
-                                {tab.label}
-                            </button>
-                        );
-                    })}
-                </nav>
-
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.85rem', flexWrap: 'wrap' }}>
-                    <button
-                        type="button"
-                        onClick={handleGoToVerification}
-                        style={{
-                            border: '1px solid #3a3524',
-                            backgroundColor: '#171717',
-                            color: '#e5e5e5',
-                            borderRadius: '999px',
-                            padding: '0.48rem 0.85rem',
-                            fontSize: '0.82rem',
-                            fontWeight: 700,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.45rem',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '1rem' }} aria-hidden="true">
-                            {isVerified ? '✔️' : ''}
-                        </span>
-                        <span>Profile</span>
-                        {!isVerified && (
-                            <span style={{ color: '#8f8f8f', fontWeight: 600 }}>
-                                {verificationLabel === 'Not Submitted' ? 'Verify' : verificationLabel}
-                            </span>
-                        )}
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={handleLogout}
-                        style={{
-                            border: '1px solid #4a1f1f',
-                            backgroundColor: 'transparent',
-                            color: '#f0b2b2',
-                            borderRadius: '999px',
-                            padding: '0.48rem 0.85rem',
-                            fontSize: '0.82rem',
-                            fontWeight: 700,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.42rem',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <LogOut size={15} />
-                        Logout
-                    </button>
-                </div>
-            </header>
+            <CustomerPortalHeader
+                activeTab={customerActiveTab}
+                activeProfile={activeView === 'profile'}
+                onTabChange={setActiveView}
+                onProfile={handleGoToVerification}
+                onLogout={handleLogout}
+            />
 
             {isServiceLocked && (
                 <section style={{ margin: '1rem 1.5rem 0', border: '1px solid #3a3524', backgroundColor: '#171717', color: '#e5e5e5', borderRadius: '12px', padding: '0.9rem 1rem' }}>
@@ -600,7 +575,7 @@ const CustomerDashboard = () => {
                         )}
                     </section>
                 </>
-            ) : (
+            ) : activeView === 'bookings' ? (
                 <section className="fleet-section" style={{ paddingTop: '2.5rem' }}>
                     <div className="fleet-header">
                         <div className="fleet-title-container">
@@ -784,6 +759,296 @@ const CustomerDashboard = () => {
                             })}
                         </div>
                     )}
+                </section>
+            ) : activeView === 'about' ? (
+                <section className="fleet-section" style={{ paddingTop: '2.5rem' }}>
+                    <div
+                        style={{
+                            border: '1px solid #2f2f2f',
+                            borderRadius: '18px',
+                            background: 'linear-gradient(180deg, #0d0f14 0%, #0a0b0e 100%)',
+                            boxShadow: '0 16px 36px rgba(0,0,0,0.35)',
+                            overflow: 'hidden',
+                        }}
+                    >
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr',
+                                gap: '1rem',
+                                padding: '1.35rem',
+                                alignItems: 'stretch',
+                            }}
+                        >
+                            <div>
+                                <h2 style={{ margin: 0, color: '#f6f6f6', fontSize: 'clamp(1.8rem, 4vw, 3rem)', lineHeight: 1.1 }}>
+                                    Smart, simple, and trusted <span style={{ color: '#DBB33B' }}>vehicle booking</span>
+                                </h2>
+
+                                <p style={{ margin: '0.85rem 0 0', color: '#c7c7c7', lineHeight: 1.7, maxWidth: '44rem' }}>
+                                    NepRide helps customers find and book verified vehicles across Nepal. Our platform is built to make booking simple, secure, and fast.
+                                </p>
+
+                                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '1.1rem' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveView('vehicles')}
+                                        style={{
+                                            border: '1px solid #D4AF37',
+                                            borderRadius: '10px',
+                                            backgroundColor: '#DBB33B',
+                                            color: '#111111',
+                                            fontWeight: 800,
+                                            padding: '0.72rem 1.05rem',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.45rem',
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        Explore Vehicles <ArrowRight size={15} />
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div style={{ padding: '0 1.35rem 1.35rem' }}>
+                            <h3 style={{ margin: '0.25rem 0 0.75rem', color: '#f4f4f4', textAlign: 'center', fontSize: '1.55rem', letterSpacing: '-0.02em' }}>
+                                Why Choose <span style={{ color: '#DBB33B' }}>NepRide</span>
+                            </h3>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                                {[
+                                    { icon: ShieldCheck, title: 'Verified Vendors', copy: 'All vendors are verified to ensure safety and trust.' },
+                                    { icon: BadgeCheck, title: 'Easy Booking', copy: 'Book your vehicle in just a few simple steps.' },
+                                    { icon: Wallet, title: 'Secure Payment', copy: 'Safe and reliable payments with full protection.' },
+                                    { icon: Clock3, title: 'Real-time Availability', copy: 'Check vehicle availability instantly.' },
+                                    { icon: Gauge, title: 'Transparent Pricing', copy: 'No hidden charges. What you see is what you pay.' },
+                                    { icon: Users, title: 'Customer Support', copy: 'Our support team is here to help you 24/7.' },
+                                ].map((item) => {
+                                    const Icon = item.icon;
+                                    return (
+                                        <article key={item.title} style={{ border: '1px solid #2f2f2f', borderRadius: '14px', backgroundColor: '#111214', padding: '0.9rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
+                                                <div style={{ width: '2rem', height: '2rem', borderRadius: '999px', backgroundColor: 'rgba(219,179,59,0.12)', color: '#DBB33B', display: 'grid', placeItems: 'center' }}>
+                                                    <Icon size={14} />
+                                                </div>
+                                                <h4 style={{ margin: 0, color: '#f2f2f2', fontSize: '0.98rem' }}>{item.title}</h4>
+                                            </div>
+                                            <p style={{ margin: 0, color: '#b9b9b9', lineHeight: 1.55, fontSize: '0.86rem' }}>{item.copy}</p>
+                                        </article>
+                                    );
+                                })}
+                            </div>
+
+                            <section
+                                style={{
+                                    marginTop: '1rem',
+                                    border: '1px solid #2f2f2f',
+                                    borderRadius: '14px',
+                                    background: 'linear-gradient(135deg, #141518 0%, #111214 70%)',
+                                    padding: '1rem',
+                                    display: 'block',
+                                }}
+                            >
+                                <div>
+                                    <p style={{ margin: 0, color: '#DBB33B', fontSize: '0.72rem', fontWeight: 800 }}>OUR MISSION</p>
+                                    <p style={{ margin: '0.45rem 0 0', color: '#e1e1e1', lineHeight: 1.7 }}>
+                                        To provide a trusted and easy vehicle rental platform where customers can book with confidence and vendors can manage services easily.
+                                    </p>
+                                </div>
+                            </section>
+
+                            <section
+                                style={{
+                                    marginTop: '1rem',
+                                    border: '1px solid rgba(219,179,59,0.45)',
+                                    borderRadius: '14px',
+                                    backgroundColor: '#131416',
+                                    padding: '1rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '0.75rem',
+                                    flexWrap: 'wrap',
+                                }}
+                            >
+                                <div>
+                                    <h4 style={{ margin: 0, color: '#f6f6f6', fontSize: '1.45rem' }}>Ready to start your journey with NepRide?</h4>
+                                    <p style={{ margin: '0.4rem 0 0', color: '#bdbdbd' }}>Book your next ride and experience the difference.</p>
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveView('vehicles')}
+                                        style={{
+                                            border: '1px solid #D4AF37',
+                                            borderRadius: '10px',
+                                            backgroundColor: '#DBB33B',
+                                            color: '#111111',
+                                            fontWeight: 800,
+                                            padding: '0.7rem 1.1rem',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.45rem',
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        Book Now <ArrowRight size={15} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveView('dashboard')}
+                                        style={{
+                                            border: '1px solid #343434',
+                                            borderRadius: '10px',
+                                            backgroundColor: '#111111',
+                                            color: '#e9e9e9',
+                                            fontWeight: 700,
+                                            padding: '0.7rem 1.1rem',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.45rem',
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        Back to Dashboard <RefreshCcw size={14} />
+                                    </button>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </section>
+            ) : activeView === 'profile' ? (
+                <section className="fleet-section" style={{ paddingTop: '2.5rem' }}>
+                    <div className="fleet-header">
+                        <div className="fleet-title-container">
+                            <h2 className="fleet-title">My <span className="text-accent">Profile</span></h2>
+                            <p className="fleet-subtitle">View your account and verification status in one place.</p>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1rem' }}>
+                        <article style={{ backgroundColor: '#0f0f0f', border: '1px solid #2f2f2f', borderRadius: '14px', padding: '1rem' }}>
+                            <h3 style={{ margin: 0, color: '#DBB33B' }}>Account</h3>
+                            <p style={{ margin: '0.65rem 0 0', color: '#d7d7d7' }}>
+                                Name: <strong>{userName}</strong>
+                            </p>
+                            <p style={{ margin: '0.35rem 0 0', color: '#d7d7d7' }}>
+                                Role: <strong>Customer</strong>
+                            </p>
+                        </article>
+
+                        <article style={{ backgroundColor: '#0f0f0f', border: '1px solid #2f2f2f', borderRadius: '14px', padding: '1rem' }}>
+                            <h3 style={{ margin: 0, color: '#DBB33B' }}>Verification</h3>
+                            <p style={{ margin: '0.65rem 0 0', color: '#d7d7d7' }}>
+                                Current status: <strong>{verificationLabel}</strong>
+                            </p>
+                            {!serviceAccessAllowed && (
+                                <p style={{ margin: '0.45rem 0 0', color: '#fbbf24' }}>
+                                    Services are locked until your account is verified by admin.
+                                </p>
+                            )}
+
+                            <button
+                                type="button"
+                                onClick={() => navigate('/verification')}
+                                style={{
+                                    marginTop: '0.85rem',
+                                    border: '1px solid #3a3524',
+                                    backgroundColor: '#171717',
+                                    color: '#DBB33B',
+                                    borderRadius: '8px',
+                                    padding: '0.55rem 0.85rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                Open Full Verification Form
+                            </button>
+                        </article>
+                    </div>
+                </section>
+            ) : (
+                <section className="fleet-section" style={{ paddingTop: '2.5rem' }}>
+                    <div className="fleet-header">
+                        <div className="fleet-title-container">
+                            <h2 className="fleet-title">Contact <span className="text-accent">Us</span></h2>
+                            <p className="fleet-subtitle">Get help quickly with your booking or account.</p>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.5fr) minmax(0, 1fr)', gap: '1rem' }}>
+                        <section style={{ backgroundColor: '#0f0f0f', border: '1px solid #2f2f2f', borderRadius: '14px', padding: '1rem' }}>
+                            <h3 style={{ margin: '0 0 1rem', color: '#DBB33B' }}>Send a Message</h3>
+
+                            {contactStatus.message && (
+                                <div style={{ marginBottom: '0.9rem', borderRadius: '10px', padding: '0.75rem 0.85rem', border: contactStatus.type === 'success' ? '1px solid #166534' : '1px solid #7f1d1d', backgroundColor: contactStatus.type === 'success' ? '#052e16' : '#3f1010', color: contactStatus.type === 'success' ? '#bbf7d0' : '#fecaca' }}>
+                                    {contactStatus.message}
+                                </div>
+                            )}
+
+                            <form onSubmit={handleContactSubmit} style={{ display: 'grid', gap: '0.85rem' }}>
+                                <div>
+                                    <label htmlFor="fullName" style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600 }}>Full Name</label>
+                                    <input id="fullName" name="fullName" value={contactForm.fullName} onChange={handleContactChange} style={{ width: '100%', borderRadius: '10px', border: '1px solid #353535', backgroundColor: '#141414', color: '#f4f4f4', padding: '0.78rem 0.85rem', fontSize: '0.95rem', outline: 'none' }} />
+                                    {contactErrors.fullName && <p style={{ color: '#fca5a5', margin: '0.35rem 0 0', fontSize: '0.85rem' }}>{contactErrors.fullName}</p>}
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                    <div>
+                                        <label htmlFor="email" style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600 }}>Email</label>
+                                        <input id="email" name="email" type="email" value={contactForm.email} onChange={handleContactChange} style={{ width: '100%', borderRadius: '10px', border: '1px solid #353535', backgroundColor: '#141414', color: '#f4f4f4', padding: '0.78rem 0.85rem', fontSize: '0.95rem', outline: 'none' }} />
+                                        {contactErrors.email && <p style={{ color: '#fca5a5', margin: '0.35rem 0 0', fontSize: '0.85rem' }}>{contactErrors.email}</p>}
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="phone" style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600 }}>Phone Number</label>
+                                        <input id="phone" name="phone" value={contactForm.phone} onChange={handleContactChange} style={{ width: '100%', borderRadius: '10px', border: '1px solid #353535', backgroundColor: '#141414', color: '#f4f4f4', padding: '0.78rem 0.85rem', fontSize: '0.95rem', outline: 'none' }} />
+                                        {contactErrors.phone && <p style={{ color: '#fca5a5', margin: '0.35rem 0 0', fontSize: '0.85rem' }}>{contactErrors.phone}</p>}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label htmlFor="subject" style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600 }}>Subject</label>
+                                    <input id="subject" name="subject" value={contactForm.subject} onChange={handleContactChange} style={{ width: '100%', borderRadius: '10px', border: '1px solid #353535', backgroundColor: '#141414', color: '#f4f4f4', padding: '0.78rem 0.85rem', fontSize: '0.95rem', outline: 'none' }} />
+                                    {contactErrors.subject && <p style={{ color: '#fca5a5', margin: '0.35rem 0 0', fontSize: '0.85rem' }}>{contactErrors.subject}</p>}
+                                </div>
+
+                                <div>
+                                    <label htmlFor="message" style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600 }}>Message</label>
+                                    <textarea id="message" name="message" rows={6} value={contactForm.message} onChange={handleContactChange} style={{ width: '100%', borderRadius: '10px', border: '1px solid #353535', backgroundColor: '#141414', color: '#f4f4f4', padding: '0.78rem 0.85rem', fontSize: '0.95rem', outline: 'none', resize: 'vertical', minHeight: '140px' }} />
+                                    {contactErrors.message && <p style={{ color: '#fca5a5', margin: '0.35rem 0 0', fontSize: '0.85rem' }}>{contactErrors.message}</p>}
+                                </div>
+
+                                <button type="submit" disabled={submittingContact} style={{ border: 'none', borderRadius: '10px', backgroundColor: submittingContact ? '#6b5c2b' : '#DBB33B', color: '#111111', fontWeight: 800, padding: '0.8rem 1rem', cursor: submittingContact ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                    <Send size={16} /> {submittingContact ? 'Sending...' : 'Send Message'}
+                                </button>
+                            </form>
+                        </section>
+
+                        <aside style={{ backgroundColor: '#0f0f0f', border: '1px solid #2f2f2f', borderRadius: '14px', padding: '1rem', height: 'fit-content' }}>
+                            <h3 style={{ margin: '0 0 1rem', color: '#DBB33B' }}>Contact Information</h3>
+                            <p style={{ margin: '0 0 1rem', color: '#b2b2b2' }}>Our support team will respond as soon as possible.</p>
+
+                            <div style={{ display: 'grid', gap: '0.75rem' }}>
+                                <div style={{ border: '1px solid #2f2a1f', backgroundColor: '#17140d', borderRadius: '10px', padding: '0.8rem' }}>
+                                    <p style={{ margin: '0 0 0.35rem', color: '#d6d6d6', fontWeight: 700 }}>Support Email</p>
+                                    <a href="mailto:roshanbastola02@gmail.com" style={{ color: '#DBB33B', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                                        <Mail size={15} /> roshanbastola02@gmail.com
+                                    </a>
+                                </div>
+
+                                <div style={{ border: '1px solid #2f2a1f', backgroundColor: '#17140d', borderRadius: '10px', padding: '0.8rem' }}>
+                                    <p style={{ margin: '0 0 0.35rem', color: '#d6d6d6', fontWeight: 700 }}>Support Phone</p>
+                                    <a href="tel:9816622940" style={{ color: '#DBB33B', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                                        <Phone size={15} /> 9816622940
+                                    </a>
+                                </div>
+                            </div>
+                        </aside>
+                    </div>
                 </section>
             )}
 

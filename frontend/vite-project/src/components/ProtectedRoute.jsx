@@ -1,15 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-
-const normalizeRole = (role) => {
-    const normalized = String(role || '').trim().toLowerCase();
-
-    if (normalized === 'customer' || normalized === 'costumer') return 'customer';
-    if (normalized === 'vendor') return 'vendor';
-    if (normalized === 'admin') return 'admin';
-
-    return '';
-};
+import { apiFetch } from '../utils/apiFetch';
+import { clearSessionAuth, getSessionToken, normalizeRole } from '../utils/sessionAuth';
 
 const ProtectedRoute = ({ children, allowedRoles = [], requireServiceAccess = true }) => {
     const [status, setStatus] = useState('loading');
@@ -19,9 +11,15 @@ const ProtectedRoute = ({ children, allowedRoles = [], requireServiceAccess = tr
     useEffect(() => {
         const checkAuth = async () => {
             try {
-                const response = await fetch('/api/auth/isAuthenticated', {
+                const token = getSessionToken();
+
+                if (!token) {
+                    setStatus('unauthorized');
+                    return;
+                }
+
+                const response = await apiFetch('/api/auth/isAuthenticated', {
                     method: 'POST',
-                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({}),
                 });
@@ -33,10 +31,12 @@ const ProtectedRoute = ({ children, allowedRoles = [], requireServiceAccess = tr
                     setServiceAccessAllowed(Boolean(data.isServiceAccessAllowed));
                     setStatus('ok');
                 } else {
+                    clearSessionAuth();
                     setStatus('unauthorized');
                 }
             } catch (err) {
                 console.error('[ProtectedRoute] fetch error:', err);
+                clearSessionAuth();
                 setStatus('unauthorized');
             }
         };

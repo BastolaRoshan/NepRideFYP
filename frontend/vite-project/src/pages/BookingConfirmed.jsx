@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { apiFetch } from '../utils/apiFetch';
 
 const formatDateTime = (value) => {
     if (!value) return '--';
@@ -21,6 +22,7 @@ const BookingConfirmed = () => {
     const [booking, setBooking] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const fetch = apiFetch;
 
     useEffect(() => {
         const fetchBooking = async () => {

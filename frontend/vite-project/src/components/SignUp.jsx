@@ -2,16 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import '../styles/Auth.css';
-
-const normalizeRole = (role) => {
-    const normalized = String(role || '').trim().toLowerCase();
-
-    if (normalized === 'customer' || normalized === 'costumer') return 'customer';
-    if (normalized === 'vendor') return 'vendor';
-    if (normalized === 'admin') return 'admin';
-
-    return 'customer';
-};
+import { clearSessionAuth, normalizeRole, setSessionAuth } from '../utils/sessionAuth';
 
 const SignUp = () => {
     const [formData, setFormData] = useState({
@@ -64,11 +55,14 @@ const SignUp = () => {
                 const role = normalizeRole(data.user?.role);
                 const verificationStatus = data.user?.verificationStatus || 'NotSubmitted';
 
-                // Set localStorage tokens so the frontend knows we are logged in
-                localStorage.setItem('isAuthenticated', 'true');
-                localStorage.setItem('userRole', role);
-                localStorage.setItem('isServiceAccessAllowed', 'false');
-                localStorage.setItem('verificationStatus', verificationStatus);
+                clearSessionAuth();
+                setSessionAuth({
+                    token: data.token,
+                    role,
+                    isServiceAccessAllowed: false,
+                    verificationStatus,
+                    userName: formData.fullName,
+                });
 
                 if (role === 'admin') {
                     navigate('/admin-dashboard', { replace: true });

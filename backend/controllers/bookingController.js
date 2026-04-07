@@ -16,23 +16,34 @@ const normalizeStatus = (value) => {
     return '';
 };
 
-const findOverlappingActiveBooking = async ({ vehicleId, startDate, endDate, excludeBookingId = null }) => {
+const isBookingBlocking = (booking, referenceTime = new Date()) => {
+    const normalizedStatus = normalizeStatus(booking?.status);
+
+    if (ACTIVE_BLOCKING_STATUSES.includes(booking?.status)) {
+        return true;
+    }
+
+    if (normalizedStatus === 'confirmed') {
+        return true;
+    }
+
+    if (normalizedStatus === 'pending_payment') {
+        return !booking?.expiresAt || new Date(booking.expiresAt).getTime() > referenceTime.getTime();
+    }
+
+    return false;
+};
+
+const getBlockingBookings = async ({ vehicleId, sinceDate, excludeBookingId = null }) => {
     const now = new Date();
 
     const query = {
         vehicle: vehicleId,
-        startDate: { $lt: endDate },
-        endDate: { $gt: now },
+        endDate: { $gt: sinceDate },
         $or: [
             { status: { $in: ACTIVE_BLOCKING_STATUSES } },
-            {
-                status: 'pending_payment',
-                expiresAt: { $gt: now },
-            },
-            {
-                status: 'Pending',
-                expiresAt: { $gt: now },
-            },
+            { status: 'pending_payment', expiresAt: { $gt: now } },
+            { status: 'Pending', expiresAt: { $gt: now } },
         ],
     };
 
@@ -40,7 +51,78 @@ const findOverlappingActiveBooking = async ({ vehicleId, startDate, endDate, exc
         query._id = { $ne: excludeBookingId };
     }
 
-    return bookingModel.findOne(query).select('_id status startDate endDate');
+    return bookingModel
+        .find(query)
+        .select('_id status startDate endDate expiresAt')
+        .sort({ startDate: 1, endDate: 1 });
+};
+
+const intervalsOverlap = (firstStart, firstEnd, secondStart, secondEnd) => {
+    return firstStart.getTime() < secondEnd.getTime() && firstEnd.getTime() > secondStart.getTime();
+};
+
+const mergeBlockingIntervals = (bookings) => {
+    const orderedIntervals = bookings
+        .map((booking) => ({
+            start: new Date(booking.startDate),
+            end: new Date(booking.endDate),
+        }))
+        .filter((interval) => !Number.isNaN(interval.start.getTime()) && !Number.isNaN(interval.end.getTime()))
+        .sort((first, second) => first.start.getTime() - second.start.getTime());
+
+    const mergedIntervals = [];
+
+    for (const interval of orderedIntervals) {
+        const lastInterval = mergedIntervals[mergedIntervals.length - 1];
+
+        if (!lastInterval || interval.start.getTime() > lastInterval.end.getTime()) {
+            mergedIntervals.push({ ...interval });
+            continue;
+        }
+
+        if (interval.end.getTime() > lastInterval.end.getTime()) {
+            lastInterval.end = interval.end;
+        }
+    }
+
+    return mergedIntervals;
+};
+
+const getNextAvailableSlot = (bookings, requestedStart, requestedEnd) => {
+    const requestedDurationMs = requestedEnd.getTime() - requestedStart.getTime();
+    const mergedIntervals = mergeBlockingIntervals(bookings);
+    let candidateStart = new Date(requestedStart);
+
+    for (const interval of mergedIntervals) {
+        const candidateEndTime = candidateStart.getTime() + requestedDurationMs;
+
+        if (candidateEndTime <= interval.start.getTime()) {
+            return {
+                nextAvailableStart: candidateStart,
+                nextAvailableEnd: new Date(candidateEndTime),
+            };
+        }
+
+        if (candidateStart.getTime() < interval.end.getTime()) {
+            candidateStart = new Date(interval.end.getTime());
+        }
+    }
+
+    return {
+        nextAvailableStart: candidateStart,
+        nextAvailableEnd: new Date(candidateStart.getTime() + requestedDurationMs),
+    };
+};
+
+const formatAvailabilitySuggestion = (suggestion) => {
+    if (!suggestion?.nextAvailableStart || !suggestion?.nextAvailableEnd) {
+        return null;
+    }
+
+    return {
+        nextAvailableStart: suggestion.nextAvailableStart.toISOString(),
+        nextAvailableEnd: suggestion.nextAvailableEnd.toISOString(),
+    };
 };
 
 const canAccessBooking = async (booking, user) => {
@@ -103,16 +185,29 @@ export const createBooking = async (req, res) => {
             return res.json({ success: false, message: "End date/time must be after start date/time" });
         }
 
-        const overlappingBooking = await findOverlappingActiveBooking({
+        const blockingBookings = await getBlockingBookings({
             vehicleId,
-            startDate: start,
-            endDate: end,
+            sinceDate: start,
         });
 
+        const overlappingBooking = blockingBookings.find((booking) =>
+            isBookingBlocking(booking) && intervalsOverlap(
+                new Date(booking.startDate),
+                new Date(booking.endDate),
+                start,
+                end
+            )
+        );
+
         if (overlappingBooking) {
+            const availabilitySuggestion = formatAvailabilitySuggestion(
+                getNextAvailableSlot(blockingBookings, start, end)
+            );
+
             return res.json({
                 success: false,
                 message: 'Vehicle is not available for the selected time range.',
+                availability: availabilitySuggestion,
             });
         }
 
@@ -207,12 +302,19 @@ export const updateBookingStatus = async (req, res) => {
 
         booking.status = normalizedStatus;
         if (normalizedStatus === 'confirmed') {
-            const overlappingBooking = await findOverlappingActiveBooking({
+            const blockingBookings = await getBlockingBookings({
                 vehicleId: booking.vehicle._id,
-                startDate: booking.startDate,
-                endDate: booking.endDate,
                 excludeBookingId: booking._id,
             });
+
+            const overlappingBooking = blockingBookings.find((blockingBooking) =>
+                isBookingBlocking(blockingBooking) && intervalsOverlap(
+                    new Date(blockingBooking.startDate),
+                    new Date(blockingBooking.endDate),
+                    new Date(booking.startDate),
+                    new Date(booking.endDate)
+                )
+            );
 
             if (overlappingBooking) {
                 return res.json({
@@ -290,12 +392,19 @@ export const confirmBookingPayment = async (req, res) => {
             return res.json({ success: false, message: 'Booking payment window has expired', booking: mapBookingWithComputedFields(booking) });
         }
 
-        const overlappingBooking = await findOverlappingActiveBooking({
+        const blockingBookings = await getBlockingBookings({
             vehicleId: booking.vehicle,
-            startDate: booking.startDate,
-            endDate: booking.endDate,
             excludeBookingId: booking._id,
         });
+
+        const overlappingBooking = blockingBookings.find((blockingBooking) =>
+            isBookingBlocking(blockingBooking) && intervalsOverlap(
+                new Date(blockingBooking.startDate),
+                new Date(blockingBooking.endDate),
+                new Date(booking.startDate),
+                new Date(booking.endDate)
+            )
+        );
 
         if (overlappingBooking) {
             return res.json({

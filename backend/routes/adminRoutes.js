@@ -4,6 +4,7 @@ import {
   deleteAdminUser,
   deleteAdminVehicle,
   getAdminDocuments,
+  getAdminFeedbackMessages,
   getAdminPayments,
   getAdminSummary,
   getAdminUsers,
@@ -22,6 +23,7 @@ router.use(protect);
 router.use(authorizeRoles("Admin"));
 
 router.get("/summary", getAdminSummary);
+router.get("/feedback", getAdminFeedbackMessages);
 
 router.get("/users", getAdminUsers);
 router.put("/users/:id", updateAdminUser);

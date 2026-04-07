@@ -1,4 +1,5 @@
 import userModel from "../models/userModel.js";
+import feedbackModel from "../models/feedbackModel.js";
 import { sendDocumentSubmittedEmail } from "../services/emailService.js";
 import {
   getRequiredDocumentTitles,
@@ -266,6 +267,52 @@ export const submitVerificationDocuments = async (req, res) => {
       success: true,
       message: "Verification documents submitted successfully",
       verification: buildVerificationResponse(user),
+    });
+  } catch (error) {
+    return res.json({ success: false, message: error.message });
+  }
+};
+
+export const submitContactFeedback = async (req, res) => {
+  try {
+    const userId = req.userId || req.user?._id || req.body?.userId;
+    const { fullName, email, phone, subject, message } = req.body || {};
+
+    const normalizedFullName = String(fullName || "").trim();
+    const normalizedEmail = String(email || "").trim();
+    const normalizedPhone = String(phone || "").replace(/\D/g, "").trim();
+    const normalizedSubject = String(subject || "").trim();
+    const normalizedMessage = String(message || "").trim();
+
+    if (!normalizedFullName || !normalizedEmail || !normalizedPhone || !normalizedSubject || !normalizedMessage) {
+      return res.json({ success: false, message: "All fields are required" });
+    }
+
+    if (!/^\d{10}$/.test(normalizedPhone)) {
+      return res.json({ success: false, message: "Phone number must be 10 digits" });
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return res.json({ success: false, message: "Please enter a valid email address" });
+    }
+
+    if (normalizedMessage.length < 15) {
+      return res.json({ success: false, message: "Message should be at least 15 characters" });
+    }
+
+    const feedback = await feedbackModel.create({
+      customer: userId,
+      fullName: normalizedFullName,
+      email: normalizedEmail,
+      phone: normalizedPhone,
+      subject: normalizedSubject,
+      message: normalizedMessage,
+    });
+
+    return res.json({
+      success: true,
+      message: "Message sent successfully",
+      feedbackId: feedback._id,
     });
   } catch (error) {
     return res.json({ success: false, message: error.message });

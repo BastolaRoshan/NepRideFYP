@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Users, Car, CreditCard, Trash2, Save } from 'lucide-react';
+import { LogOut, Users, Car, CreditCard, Trash2, Save, MessageSquare } from 'lucide-react';
 import UsersList from './UsersList';
 import DocumentPreviewModal from './DocumentPreviewModal';
+import { apiFetch } from '../utils/apiFetch';
+import { clearSessionAuth } from '../utils/sessionAuth';
 
 const tabs = [
   { key: 'users', label: 'Users', icon: Users },
   { key: 'vehicles', label: 'Vehicle Listings', icon: Car },
   { key: 'payments', label: 'Payments', icon: CreditCard },
+  { key: 'feedback', label: 'Feedback', icon: MessageSquare },
 ];
 
 const userRoleOptions = ['Customer', 'Vendor', 'Admin'];
@@ -39,6 +42,8 @@ const resolveDocumentUrl = (url) => {
   return withLeadingSlash;
 };
 
+const fetch = apiFetch;
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
 
@@ -55,6 +60,7 @@ const AdminDashboard = () => {
   const [vehicles, setVehicles] = useState([]);
   const [payments, setPayments] = useState([]);
   const [documents, setDocuments] = useState([]);
+  const [feedbackMessages, setFeedbackMessages] = useState([]);
 
   const [userDrafts, setUserDrafts] = useState({});
   const [paymentDrafts, setPaymentDrafts] = useState({});
@@ -87,15 +93,14 @@ const AdminDashboard = () => {
 
   const handleLogout = async () => {
     try {
-      const response = await fetch('/api/auth/logout', {
+      const response = await globalThis.fetch('/api/auth/logout', {
         method: 'POST',
         credentials: 'include',
       });
       const data = await response.json();
 
       if (data.success) {
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('isAuthenticated');
+        clearSessionAuth();
         navigate('/login');
       }
     } catch {
@@ -220,6 +225,20 @@ const AdminDashboard = () => {
     setDocumentDrafts(draftMap);
   }, []);
 
+  const fetchFeedbackMessages = useCallback(async () => {
+    const response = await fetch('/api/admin/feedback', {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to load feedback messages');
+    }
+
+    setFeedbackMessages(Array.isArray(data.feedback) ? data.feedback : []);
+  }, []);
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -234,6 +253,8 @@ const AdminDashboard = () => {
           await fetchVehicles();
         } else if (activeTab === 'payments') {
           await fetchPayments();
+        } else if (activeTab === 'feedback') {
+          await fetchFeedbackMessages();
         } else if (activeTab === 'documents') {
           await fetchUsers();
           await fetchDocuments();
@@ -246,7 +267,7 @@ const AdminDashboard = () => {
     };
 
     loadData();
-  }, [activeTab, fetchDocuments, fetchPayments, fetchSummary, fetchUsers, fetchVehicles, refreshSeed]);
+  }, [activeTab, fetchDocuments, fetchFeedbackMessages, fetchPayments, fetchSummary, fetchUsers, fetchVehicles, refreshSeed]);
 
   const handleRefresh = () => {
     setRefreshSeed((prev) => prev + 1);
@@ -826,6 +847,39 @@ const AdminDashboard = () => {
                   </div>
                 );
               })
+            )}
+          </div>
+        )}
+
+        {!loading && activeTab === 'feedback' && (
+          <div style={{ display: 'grid', gap: '0.75rem' }}>
+            {feedbackMessages.length === 0 ? (
+              <div style={{ ...cardStyle, color: '#a0a0a0' }}>No feedback messages found.</div>
+            ) : (
+              feedbackMessages.map((item) => (
+                <div key={item._id} style={{ ...cardStyle, display: 'grid', gap: '0.55rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                    <h3 style={{ margin: 0, fontSize: '1rem' }}>{item.subject || 'No Subject'}</h3>
+                    <span style={{ fontSize: '0.8rem', color: palette.textSecondary }}>
+                      {item.createdAt ? new Date(item.createdAt).toLocaleString() : '--'}
+                    </span>
+                  </div>
+
+                  <p style={{ margin: 0, fontSize: '0.88rem', color: palette.textSecondary }}>
+                    From: {item.fullName} ({item.email}) • {item.phone}
+                  </p>
+
+                  <p style={{ margin: 0, color: palette.text, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                    {item.message}
+                  </p>
+
+                  {item.customer && (
+                    <p style={{ margin: 0, fontSize: '0.82rem', color: palette.textSecondary }}>
+                      Account: {item.customer.name || 'Unknown'} ({item.customer.role || 'Customer'})
+                    </p>
+                  )}
+                </div>
+              ))
             )}
           </div>
         )}

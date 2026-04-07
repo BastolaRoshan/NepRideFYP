@@ -74,6 +74,33 @@ function App() {
         />
 
         <Route
+          path="/customer-dashboard/contact"
+          element={
+            <ProtectedRoute allowedRoles={['Customer', 'Admin']} requireServiceAccess={false}>
+              <CustomerDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/customer-dashboard/about"
+          element={
+            <ProtectedRoute allowedRoles={['Customer', 'Admin']} requireServiceAccess={false}>
+              <CustomerDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/customer-dashboard/profile"
+          element={
+            <ProtectedRoute allowedRoles={['Customer', 'Admin']} requireServiceAccess={false}>
+              <CustomerDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/payment/:bookingId"
           element={
             <ProtectedRoute allowedRoles={['Customer', 'Admin']} requireServiceAccess={false}>

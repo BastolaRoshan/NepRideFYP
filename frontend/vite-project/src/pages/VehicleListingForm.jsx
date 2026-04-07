@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, UploadCloud } from 'lucide-react';
+import { Car, Loader2, LogOut, Plus, UploadCloud, Users } from 'lucide-react';
+import { apiFetch } from '../utils/apiFetch';
+import { clearSessionAuth, getSessionToken, getStoredServiceAccessAllowed, getStoredVerificationStatus, setSessionAuth } from '../utils/sessionAuth';
 
 const initialFormState = {
   title: '',
@@ -43,8 +45,8 @@ const VehicleListingForm = () => {
     message: '',
     isError: false,
   });
-  const [verificationStatus, setVerificationStatus] = useState(localStorage.getItem('verificationStatus') || 'NotSubmitted');
-  const [serviceAccessAllowed, setServiceAccessAllowed] = useState(localStorage.getItem('isServiceAccessAllowed') === 'true');
+  const [verificationStatus, setVerificationStatus] = useState(getStoredVerificationStatus());
+  const [serviceAccessAllowed, setServiceAccessAllowed] = useState(getStoredServiceAccessAllowed());
 
   const serviceLockMessage = 'Services are locked until admin approval.';
 
@@ -78,9 +80,8 @@ const VehicleListingForm = () => {
   useEffect(() => {
     const fetchVerificationStatus = async () => {
       try {
-        const response = await fetch('/api/user/verification-status', {
+        const response = await apiFetch('/api/user/verification-status', {
           method: 'GET',
-          credentials: 'include',
         });
 
         const data = await response.json();
@@ -92,8 +93,11 @@ const VehicleListingForm = () => {
         const nextAccessAllowed = Boolean(data?.verification?.isServiceAccessAllowed);
         setVerificationStatus(nextStatus);
         setServiceAccessAllowed(nextAccessAllowed);
-        localStorage.setItem('verificationStatus', nextStatus);
-        localStorage.setItem('isServiceAccessAllowed', nextAccessAllowed ? 'true' : 'false');
+        setSessionAuth({
+          token: getSessionToken(),
+          verificationStatus: nextStatus,
+          isServiceAccessAllowed: nextAccessAllowed,
+        });
       } catch {
         // keep fallback local state if API request fails
       }
@@ -210,10 +214,9 @@ const VehicleListingForm = () => {
       const endpoint = isEditMode ? `/api/vehicles/${editVehicle._id}` : '/api/vehicles';
       const method = isEditMode ? 'PUT' : 'POST';
 
-      const response = await fetch(endpoint, {
+      const response = await apiFetch(endpoint, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(payload),
       });
 
@@ -234,7 +237,7 @@ const VehicleListingForm = () => {
         isError: false,
       });
 
-      setTimeout(() => { navigate('/vendor-dashboard'); }, 1100);
+      setTimeout(() => { navigate('/vendor-dashboard', { state: { activeTab: 'vehicles' } }); }, 1100);
     } catch (error) {
       setSubmitState({
         loading: false,
@@ -247,28 +250,141 @@ const VehicleListingForm = () => {
   const labelStyle = { fontSize: '0.875rem', fontWeight: '600', color: palette.textSecondary };
   const errorTextStyle = { marginTop: '0.25rem', fontSize: '0.75rem', color: palette.danger };
 
+  const handleLogout = async () => {
+    try {
+      await globalThis.fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // no-op
+    } finally {
+      clearSessionAuth();
+      navigate('/login', { replace: true });
+    }
+  };
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: palette.bg, color: palette.text }}>
       {/* Navbar */}
-      <nav style={{ backgroundColor: palette.card, borderBottom: `1px solid ${palette.border}`, padding: '1rem 1.5rem' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button
-            type="button"
-            onClick={() => navigate('/vendor-dashboard')}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '2.5rem', height: '2.5rem', borderRadius: '8px',
-              border: `1px solid ${palette.accent}`, backgroundColor: '#FFF8E1',
-              color: '#8A6A00', cursor: 'pointer', transition: 'all 0.3s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#FDE68A'; e.currentTarget.style.color = '#7A5D00'; }}
-            onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#FFF8E1'; e.currentTarget.style.color = '#8A6A00'; }}
-            aria-label="Go back"
-          >
-            <ArrowLeft size={18} />
-          </button>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: '700', color: palette.accent, margin: 0 }}>NepRide</h1>
-          <span style={{ color: palette.text, fontSize: '1rem', fontWeight: '600' }}>{isEditMode ? 'Edit Vehicle' : 'Add Vehicle'}</span>
+      <nav style={{ backgroundColor: palette.card, borderBottom: `1px solid ${palette.border}`, padding: '0.85rem 1.25rem' }}>
+        <div
+          style={{
+            maxWidth: '1240px',
+            margin: '0 auto',
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+            alignItems: 'center',
+            gap: '1rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+            <div
+              style={{
+                width: '2.5rem',
+                height: '2.5rem',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #D4AF37 0%, #E9C96A 100%)',
+                display: 'grid',
+                placeItems: 'center',
+                color: '#1A1A1A',
+                flexShrink: 0,
+              }}
+            >
+              <Car size={17} />
+            </div>
+            <h1 style={{ margin: 0, fontSize: '1.2rem', color: '#171717', fontWeight: 700, whiteSpace: 'nowrap' }}>
+              NepRide Vendor
+            </h1>
+          </div>
+
+          <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
+            {[
+              { key: 'dashboard', label: 'Dashboard' },
+              { key: 'vehicles', label: 'Vehicles' },
+              { key: 'bookings', label: 'Bookings' },
+              { key: 'add_vehicle', label: isEditMode ? 'Edit Vehicle' : 'Add Vehicle' },
+            ].map((tab) => {
+              const isActive = tab.key === 'add_vehicle';
+
+              const onClick = () => {
+                if (tab.key === 'dashboard') navigate('/vendor-dashboard', { state: { activeTab: 'overview' } });
+                if (tab.key === 'vehicles') navigate('/vendor-dashboard', { state: { activeTab: 'vehicles' } });
+                if (tab.key === 'bookings') navigate('/vendor-dashboard', { state: { activeTab: 'bookings' } });
+              };
+
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={onClick}
+                  style={{
+                    border: 'none',
+                    borderRadius: '999px',
+                    minHeight: '40px',
+                    padding: '0.62rem 1rem',
+                    backgroundColor: isActive ? palette.accent : 'transparent',
+                    color: isActive ? '#111111' : '#6B7280',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.01em',
+                    cursor: isActive ? 'default' : 'pointer',
+                    boxShadow: isActive ? 'inset 0 -2px 0 #b38b1d' : 'none',
+                    transition: 'background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.38rem',
+                  }}
+                >
+                  {tab.key === 'add_vehicle' ? <Plus size={13} /> : null}
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.65rem', flexWrap: 'nowrap' }}>
+            <button
+              type="button"
+              onClick={() => navigate('/verification')}
+              style={{
+                border: '1px solid #D8DEE8',
+                backgroundColor: '#FFFFFF',
+                color: '#2D3748',
+                borderRadius: '999px',
+                minHeight: '40px',
+                padding: '0.45rem 0.75rem',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.38rem',
+                cursor: 'pointer',
+              }}
+            >
+              <Users size={13} /> Profile
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={{
+                border: '1px solid #F3B0B0',
+                backgroundColor: '#FFF7F7',
+                color: '#B91C1C',
+                borderRadius: '999px',
+                minHeight: '40px',
+                padding: '0.45rem 0.75rem',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.38rem',
+                cursor: 'pointer',
+              }}
+            >
+              <LogOut size={13} /> Logout
+            </button>
+          </div>
         </div>
       </nav>
 

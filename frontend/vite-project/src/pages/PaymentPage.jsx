@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { apiFetch } from '../utils/apiFetch';
+import { getStoredServiceAccessAllowed, getStoredVerificationStatus, setSessionAuth, getSessionToken } from '../utils/sessionAuth';
 
 const PAYMENT_WINDOW_MS = 10 * 60 * 1000;
 
@@ -40,8 +42,8 @@ const PaymentPage = () => {
     const [booking, setBooking] = useState(null);
     const [loading, setLoading] = useState(true);
     const [pageMessage, setPageMessage] = useState('');
-    const [verificationStatus, setVerificationStatus] = useState(localStorage.getItem('verificationStatus') || 'NotSubmitted');
-    const [serviceAccessAllowed, setServiceAccessAllowed] = useState(localStorage.getItem('isServiceAccessAllowed') === 'true');
+    const [verificationStatus, setVerificationStatus] = useState(getStoredVerificationStatus());
+    const [serviceAccessAllowed, setServiceAccessAllowed] = useState(getStoredServiceAccessAllowed());
     const [remainingSeconds, setRemainingSeconds] = useState(0);
     const [paymentLoading, setPaymentLoading] = useState(false);
     const [cancelled, setCancelled] = useState(false);
@@ -57,9 +59,8 @@ const PaymentPage = () => {
         try {
             setLoading(true);
             setPageMessage('');
-            const response = await fetch(`/api/bookings/${bookingId}`, {
+            const response = await apiFetch(`/api/bookings/${bookingId}`, {
                 method: 'GET',
-                credentials: 'include',
             });
             const data = await response.json();
             if (!response.ok || !data.success) {
@@ -80,9 +81,8 @@ const PaymentPage = () => {
     useEffect(() => {
         const fetchVerificationState = async () => {
             try {
-                const response = await fetch('/api/user/verification-status', {
+                const response = await apiFetch('/api/user/verification-status', {
                     method: 'GET',
-                    credentials: 'include',
                 });
 
                 const data = await response.json();
@@ -94,8 +94,11 @@ const PaymentPage = () => {
                 const nextAccessAllowed = Boolean(data?.verification?.isServiceAccessAllowed);
                 setVerificationStatus(nextStatus);
                 setServiceAccessAllowed(nextAccessAllowed);
-                localStorage.setItem('verificationStatus', nextStatus);
-                localStorage.setItem('isServiceAccessAllowed', nextAccessAllowed ? 'true' : 'false');
+                setSessionAuth({
+                    token: getSessionToken(),
+                    verificationStatus: nextStatus,
+                    isServiceAccessAllowed: nextAccessAllowed,
+                });
             } catch {
                 // keep local fallback if verification fetch fails
             }
@@ -109,10 +112,9 @@ const PaymentPage = () => {
         hasHandledExpiryRef.current = true;
 
         try {
-            const response = await fetch(`/api/bookings/${bookingId}/cancel`, {
+            const response = await apiFetch(`/api/bookings/${bookingId}/cancel`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify({ reason: 'Payment timeout - auto cancelled' }),
             });
             const data = await response.json();
@@ -231,10 +233,9 @@ const PaymentPage = () => {
 
         try {
             setPaymentLoading(true);
-            const response = await fetch(`/api/bookings/${bookingId}/cancel`, {
+            const response = await apiFetch(`/api/bookings/${bookingId}/cancel`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify({ reason: 'Cancelled from payment page' }),
             });
 

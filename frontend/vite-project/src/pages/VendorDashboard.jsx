@@ -1,506 +1,1072 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { LogOut, Plus, Edit2, Trash2, Package, BadgeCheck, Car } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { BadgeCheck, CalendarDays, Car, Edit2, LogOut, Package, Plus, RefreshCw, Trash2, Users } from 'lucide-react';
+import { apiFetch } from '../utils/apiFetch';
+import { clearSessionAuth, getSessionToken, getStoredServiceAccessAllowed, getStoredVerificationStatus, setSessionAuth } from '../utils/sessionAuth';
 
 const palette = {
-    bg: '#F8FAFC',
-    card: '#FFFFFF',
-    border: '#E5E7EB',
-    accent: '#D4AF37',
-    text: '#111827',
-    textSecondary: '#6B7280',
-    approved: '#22C55E',
-    underReview: '#F59E0B',
-    rejected: '#EF4444',
-    notSubmitted: '#9CA3AF',
+  bg: '#F6F1E8',
+  shell: '#FFFDFC',
+  card: '#FFFFFF',
+  border: '#E7DFD0',
+  accent: '#D4AF37',
+  accentDark: '#A87A12',
+  accentSoft: '#FFF6DD',
+  text: '#171717',
+  textSecondary: '#667085',
+  approved: '#15803D',
+  underReview: '#B45309',
+  rejected: '#B91C1C',
+  muted: '#94A3B8',
+  surface: '#FBF8F1',
+};
+
+const normalizeVerificationStatus = (status) => {
+  if (status === 'UnderReview') return 'Under Review';
+  if (status === 'NotSubmitted') return 'Unverified';
+  return status || 'Unverified';
+};
+
+const normalizeBookingStatus = (status) => {
+  const normalized = String(status || '').trim().toLowerCase();
+
+  if (normalized === 'pending_payment' || normalized === 'pending') return 'pending_payment';
+  if (normalized === 'confirmed') return 'confirmed';
+  if (normalized === 'cancelled' || normalized === 'canceled') return 'cancelled';
+  if (normalized === 'completed') return 'completed';
+
+  return normalized || 'pending_payment';
+};
+
+const bookingStatusMeta = (status) => {
+  const normalized = normalizeBookingStatus(status);
+
+  if (normalized === 'confirmed') {
+    return { label: 'Confirmed', bg: '#ECFDF3', text: palette.approved, border: '#86EFAC' };
+  }
+
+  if (normalized === 'cancelled') {
+    return { label: 'Cancelled', bg: '#FEF2F2', text: palette.rejected, border: '#FCA5A5' };
+  }
+
+  if (normalized === 'completed') {
+    return { label: 'Completed', bg: '#EFF6FF', text: '#2563EB', border: '#93C5FD' };
+  }
+
+  return { label: 'Awaiting Payment', bg: '#FFF7ED', text: palette.underReview, border: '#FDBA74' };
+};
+
+const formatMoney = (value) => `Rs. ${Number(value || 0).toLocaleString()}`;
+const fetch = apiFetch;
+
+const formatCountdown = (seconds) => {
+  const safe = Math.max(0, Number(seconds || 0));
+  const minutes = Math.floor(safe / 60);
+  const secs = safe % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+};
+
+const formatDateRange = (startDate, endDate) => {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
+  const start = startDate ? formatter.format(new Date(startDate)) : 'N/A';
+  const end = endDate ? formatter.format(new Date(endDate)) : 'N/A';
+  return `${start} - ${end}`;
 };
 
 const VendorDashboard = () => {
-    const navigate = useNavigate();
-    const [vehicles, setVehicles] = useState([]);
-    const [bookings, setBookings] = useState([]);
-    const [activeTab, setActiveTab] = useState('vehicles');
-    const [loading, setLoading] = useState(false);
-    const [actionState, setActionState] = useState({ message: '', isError: false });
-    const [deletingVehicleId, setDeletingVehicleId] = useState('');
-    const [verificationStatus, setVerificationStatus] = useState(localStorage.getItem('verificationStatus') || 'NotSubmitted');
-    const [serviceAccessAllowed, setServiceAccessAllowed] = useState(localStorage.getItem('isServiceAccessAllowed') === 'true');
+  const navigate = useNavigate();
+  const location = useLocation();
 
-    const serviceLockMessage = 'Services are locked until admin approval.';
+  const [activeTab, setActiveTab] = useState(() => location.state?.activeTab || 'overview');
+  const [vehicles, setVehicles] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [bookingStatusFilter, setBookingStatusFilter] = useState('all');
+  const [nowMs, setNowMs] = useState(Date.now());
+  const [message, setMessage] = useState({ text: '', isError: false });
+  const [deletingVehicleId, setDeletingVehicleId] = useState('');
+  const [updatingBookingId, setUpdatingBookingId] = useState('');
+  const [verificationStatus, setVerificationStatus] = useState(getStoredVerificationStatus());
+  const [serviceAccessAllowed, setServiceAccessAllowed] = useState(getStoredServiceAccessAllowed());
 
-    const normalizeVerificationStatus = (status) => {
-        if (status === 'UnderReview') return 'Under Review';
-        if (status === 'NotSubmitted') return 'Not Submitted';
-        return status || 'Not Submitted';
+  const serviceLockMessage = 'Your vendor tools are locked until verification is approved.';
+
+  useEffect(() => {
+    const nextActiveTab = location.state?.activeTab;
+    if (nextActiveTab) {
+      setActiveTab(nextActiveTab);
+    }
+  }, [location.state]);
+
+  const loadVerificationStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/user/verification-status', {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) return;
+
+      const nextStatus = data?.verification?.verificationStatus || 'NotSubmitted';
+      const nextAccessAllowed = Boolean(data?.verification?.isServiceAccessAllowed);
+
+      setVerificationStatus(nextStatus);
+      setServiceAccessAllowed(nextAccessAllowed);
+      setSessionAuth({
+        token: getSessionToken(),
+        verificationStatus: nextStatus,
+        isServiceAccessAllowed: nextAccessAllowed,
+      });
+    } catch {
+      // Keep fallback local state if the request fails.
+    }
+  }, []);
+
+  const loadDashboardData = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      const [vehicleResponse, bookingResponse] = await Promise.all([
+        fetch('/api/vehicles/vendor', { method: 'GET', credentials: 'include' }),
+        fetch('/api/bookings/vendor-bookings', { method: 'GET', credentials: 'include' }),
+      ]);
+
+      const [vehicleData, bookingData] = await Promise.all([vehicleResponse.json(), bookingResponse.json()]);
+
+      if (!vehicleResponse.ok || !vehicleData.success) {
+        throw new Error(vehicleData.message || 'Failed to load vehicles');
+      }
+
+      if (!bookingResponse.ok || !bookingData.success) {
+        throw new Error(bookingData.message || 'Failed to load bookings');
+      }
+
+      setVehicles(Array.isArray(vehicleData.vehicles) ? vehicleData.vehicles : []);
+      setBookings(Array.isArray(bookingData.bookings) ? bookingData.bookings : []);
+      setMessage({ text: '', isError: false });
+    } catch (error) {
+      setMessage({ text: error.message || 'Unable to load vendor dashboard.', isError: true });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadVendorBookingsRealtime = useCallback(async () => {
+    try {
+      const response = await fetch('/api/bookings/vendor-bookings', { method: 'GET', credentials: 'include' });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        return;
+      }
+
+      setBookings(Array.isArray(data.bookings) ? data.bookings : []);
+    } catch {
+      // Silently ignore transient polling errors.
+    }
+  }, []);
+
+  useEffect(() => {
+    loadVerificationStatus();
+  }, [loadVerificationStatus]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
+
+  useEffect(() => {
+    const timerId = setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => clearInterval(timerId);
+  }, []);
+
+  useEffect(() => {
+    const pollId = setInterval(() => {
+      loadVendorBookingsRealtime();
+    }, 2000);
+
+    return () => clearInterval(pollId);
+  }, [loadVendorBookingsRealtime]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        loadVendorBookingsRealtime();
+      }
     };
 
-    const isVerified = ['verified', 'approved'].includes(String(verificationStatus).toLowerCase());
-    const verificationLabel = normalizeVerificationStatus(verificationStatus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [loadVendorBookingsRealtime]);
 
-    useEffect(() => {
-        if (activeTab === 'vehicles') {
-            fetchVehicles();
-        } else {
-            fetchBookings();
-        }
-    }, [activeTab]);
+  const liveBookings = useMemo(() => {
+    return bookings.map((booking) => {
+      const originalStatus = normalizeBookingStatus(booking.status);
+      const expiresAtMs = booking?.expiresAt ? new Date(booking.expiresAt).getTime() : null;
+      const hasTimer = originalStatus === 'pending_payment' && Number.isFinite(expiresAtMs);
+      const remainingSeconds = hasTimer ? Math.max(0, Math.floor((expiresAtMs - nowMs) / 1000)) : 0;
+      const isExpiredPending = hasTimer && remainingSeconds <= 0;
+      const normalizedStatus = isExpiredPending ? 'cancelled' : originalStatus;
 
-    useEffect(() => {
-        fetchVerificationStatus();
-    }, []);
+      return {
+        ...booking,
+        normalizedStatus,
+        remainingSeconds,
+        isExpiredPending,
+      };
+    });
+  }, [bookings, nowMs]);
 
-    const fetchVerificationStatus = async () => {
-        try {
-            const response = await fetch('/api/user/verification-status', {
-                method: 'GET',
-                credentials: 'include',
-            });
+  const stats = useMemo(() => {
+    const normalizedBookings = liveBookings;
 
-            const data = await response.json();
-            if (!response.ok || !data.success) {
-                return;
-            }
+    const revenue = normalizedBookings.reduce((total, booking) => {
+      const isPaid = String(booking.paymentStatus || '').toLowerCase() === 'paid';
+      if (isPaid || booking.normalizedStatus === 'confirmed' || booking.normalizedStatus === 'completed') {
+        return total + Number(booking.totalPrice || 0);
+      }
+      return total;
+    }, 0);
 
-            const nextStatus = data?.verification?.verificationStatus || 'NotSubmitted';
-            const nextAccessAllowed = Boolean(data?.verification?.isServiceAccessAllowed);
-            setVerificationStatus(nextStatus);
-            setServiceAccessAllowed(nextAccessAllowed);
-            localStorage.setItem('verificationStatus', nextStatus);
-            localStorage.setItem('isServiceAccessAllowed', nextAccessAllowed ? 'true' : 'false');
-        } catch {
-            // keep fallback local state if API request fails
-        }
+    const pendingBookings = normalizedBookings.filter((booking) => booking.normalizedStatus === 'pending_payment').length;
+    const confirmedBookings = normalizedBookings.filter((booking) => booking.normalizedStatus === 'confirmed').length;
+    const completedBookings = normalizedBookings.filter((booking) => booking.normalizedStatus === 'completed').length;
+    const cancelledBookings = normalizedBookings.filter((booking) => booking.normalizedStatus === 'cancelled').length;
+
+    const nextBooking = [...normalizedBookings]
+      .sort((left, right) => new Date(left.startDate || 0).getTime() - new Date(right.startDate || 0).getTime())
+      .find((booking) => booking.normalizedStatus !== 'cancelled');
+
+    return {
+      vehicles: vehicles.length,
+      bookings: normalizedBookings.length,
+      pendingBookings,
+      confirmedBookings,
+      completedBookings,
+      cancelledBookings,
+      revenue,
+      nextBooking,
     };
+  }, [liveBookings, vehicles]);
 
-    const fetchVehicles = async () => {
-        try {
-            setLoading(true);
-            const response = await fetch('/api/vehicles/vendor', {
-                method: 'GET',
-                credentials: 'include'
-            });
-            const data = await response.json();
-            if (data.success) {
-                setVehicles(data.vehicles);
-            }
-        } catch (err) {
-            console.error('Error fetching vehicles:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
+  const filteredBookings = useMemo(() => {
+    if (bookingStatusFilter === 'all') {
+      return liveBookings;
+    }
 
-    const fetchBookings = async () => {
-        try {
-            setLoading(true);
-            const response = await fetch('/api/bookings/vendor-bookings', {
-                method: 'GET',
-                credentials: 'include'
-            });
-            const data = await response.json();
-            if (data.success) {
-                setBookings(data.bookings);
-            }
-        } catch (err) {
-            console.error('Error fetching bookings:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
+    return liveBookings.filter((booking) => booking.normalizedStatus === bookingStatusFilter);
+  }, [liveBookings, bookingStatusFilter]);
 
-    const handleLogout = async () => {
-        try {
-            const response = await fetch('/api/auth/logout', {
-                method: 'POST',
-                credentials: 'include'
-            });
-            const data = await response.json();
-            if (data.success) {
-                localStorage.removeItem('userRole');
-                localStorage.removeItem('isAuthenticated');
-                navigate('/login');
-            }
-        } catch (err) {
-            console.error('Logout Error:', err);
-        }
-    };
+  const verificationLabel = normalizeVerificationStatus(verificationStatus);
 
-    const handleAddVehicle = () => {
-        if (!serviceAccessAllowed) {
-            setActionState({ message: serviceLockMessage, isError: true });
-            return;
-        }
+  const handleLogout = async () => {
+    try {
+      const response = await globalThis.fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
 
-        navigate('/vendor-dashboard/add-vehicle');
-    };
+      const data = await response.json();
+      if (data.success) {
+        clearSessionAuth();
+        navigate('/login');
+      }
+    } catch {
+      setMessage({ text: 'Logout failed. Please try again.', isError: true });
+    }
+  };
 
-    const handleGoToVerification = () => {
-        navigate('/verification');
-    };
+  const handleStatCardClick = (key) => {
+    if (key === 'vehicles') {
+      setActiveTab('vehicles');
+      return;
+    }
 
-    const handleEditVehicle = (vehicle) => {
-        if (!serviceAccessAllowed) {
-            setActionState({ message: serviceLockMessage, isError: true });
-            return;
-        }
+    if (key === 'bookings') {
+      setBookingStatusFilter('all');
+      setActiveTab('bookings');
+      return;
+    }
 
-        navigate('/vendor-dashboard/add-vehicle', {
-            state: {
-                mode: 'edit',
-                vehicle,
-            },
-        });
-    };
+    if (key === 'pending') {
+      setBookingStatusFilter('pending_payment');
+      setActiveTab('bookings');
+      return;
+    }
 
-    const handleDeleteVehicle = async (vehicleId) => {
-        if (!serviceAccessAllowed) {
-            setActionState({ message: serviceLockMessage, isError: true });
-            return;
-        }
+    if (key === 'revenue') {
+      setBookingStatusFilter('all');
+      setActiveTab('bookings');
+    }
+  };
 
-        const shouldDelete = window.confirm('Are you sure you want to delete this vehicle listing?');
-        if (!shouldDelete) {
-            return;
-        }
+  const handleAddVehicle = () => {
+    if (!serviceAccessAllowed) {
+      setMessage({ text: serviceLockMessage, isError: true });
+      return;
+    }
 
-        try {
-            setDeletingVehicleId(vehicleId);
-            setActionState({ message: '', isError: false });
+    navigate('/vendor-dashboard/add-vehicle');
+  };
 
-            const response = await fetch(`/api/vehicles/${vehicleId}`, {
-                method: 'DELETE',
-                credentials: 'include',
-            });
+  const handleGoToVerification = () => {
+    navigate('/verification');
+  };
 
-            const data = await response.json();
+  const handleEditVehicle = (vehicle) => {
+    if (!serviceAccessAllowed) {
+      setMessage({ text: serviceLockMessage, isError: true });
+      return;
+    }
 
-            if (!response.ok || !data.success) {
-                throw new Error(data.message || 'Failed to delete vehicle');
-            }
+    navigate('/vendor-dashboard/add-vehicle', {
+      state: {
+        mode: 'edit',
+        vehicle,
+      },
+    });
+  };
 
-            setVehicles((prevVehicles) => prevVehicles.filter((vehicle) => vehicle._id !== vehicleId));
-            setActionState({ message: 'Vehicle deleted successfully.', isError: false });
-        } catch (error) {
-            setActionState({ message: error.message || 'Unable to delete vehicle.', isError: true });
-        } finally {
-            setDeletingVehicleId('');
-        }
-    };
+  const handleDeleteVehicle = async (vehicleId) => {
+    if (!serviceAccessAllowed) {
+      setMessage({ text: serviceLockMessage, isError: true });
+      return;
+    }
 
-    const navStyle = {
-        backgroundColor: palette.card,
-        borderBottom: `1px solid ${palette.border}`,
-        padding: '1rem 1.5rem 0.9rem',
-        display: 'grid',
-        gridTemplateColumns: '1fr auto 1fr',
-        alignItems: 'center',
-        gap: '1rem',
-    };
+    const shouldDelete = window.confirm('Delete this vehicle listing?');
+    if (!shouldDelete) return;
 
-    const navInnerStyle = {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.85rem',
-    };
+    setDeletingVehicleId(vehicleId);
 
-    return (
-        <div style={{ minHeight: '100vh', backgroundColor: palette.bg, color: palette.text }}>
-            {/* Top Navbar */}
-            <nav style={navStyle}>
-                <div style={navInnerStyle}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
-                        <Car size={20} color={palette.accent} />
-                        <span style={{ color: palette.accent, fontSize: '1.5rem', fontWeight: 800, letterSpacing: '0.02em' }}>NepRide</span>
+    try {
+      const response = await fetch(`/api/vehicles/${vehicleId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to delete vehicle');
+      }
+
+      setVehicles((previous) => previous.filter((vehicle) => vehicle._id !== vehicleId));
+      setMessage({ text: 'Vehicle deleted successfully.', isError: false });
+    } catch (error) {
+      setMessage({ text: error.message || 'Unable to delete vehicle.', isError: true });
+    } finally {
+      setDeletingVehicleId('');
+    }
+  };
+
+  const handleBookingStatusUpdate = async (bookingId, status) => {
+    if (!serviceAccessAllowed) {
+      setMessage({ text: serviceLockMessage, isError: true });
+      return;
+    }
+
+    setUpdatingBookingId(bookingId);
+
+    try {
+      const response = await fetch(`/api/bookings/${bookingId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to update booking status');
+      }
+
+      setBookings((previous) => previous.map((booking) => (booking._id === bookingId ? data.booking : booking)));
+      setMessage({ text: `Booking updated to ${status}.`, isError: false });
+    } catch (error) {
+      setMessage({ text: error.message || 'Unable to update booking.', isError: true });
+    } finally {
+      setUpdatingBookingId('');
+    }
+  };
+
+  const shellStyle = {
+    minHeight: '100vh',
+    background: 'radial-gradient(circle at top left, rgba(212,175,55,0.18), transparent 32%), linear-gradient(180deg, #FCFAF5 0%, #F6F1E8 100%)',
+    color: palette.text,
+  };
+
+  const cardStyle = {
+    backgroundColor: palette.card,
+    border: `1px solid ${palette.border}`,
+    borderRadius: '18px',
+    boxShadow: '0 18px 45px rgba(15, 23, 42, 0.05)',
+  };
+
+  const badgeStyle = (meta) => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.35rem',
+    borderRadius: '999px',
+    border: `1px solid ${meta.border}`,
+    backgroundColor: meta.bg,
+    color: meta.text,
+    padding: '0.35rem 0.7rem',
+    fontSize: '0.78rem',
+    fontWeight: 700,
+  });
+
+  const actionButtonStyle = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.45rem',
+    borderRadius: '12px',
+    border: `1px solid ${palette.accent}`,
+    backgroundColor: palette.accentSoft,
+    color: palette.accentDark,
+    padding: '0.68rem 1rem',
+    cursor: 'pointer',
+    fontWeight: 700,
+    fontSize: '0.85rem',
+  };
+
+  const tabs = [
+    { key: 'overview', label: 'Dashboard' },
+    { key: 'vehicles', label: 'Vehicles' },
+    { key: 'bookings', label: 'Bookings' },
+    { key: 'add_vehicle', label: 'Add Vehicle' },
+  ];
+
+  return (
+    <div style={shellStyle}>
+      <nav
+        style={{
+          backgroundColor: palette.card,
+          borderBottom: `1px solid ${palette.border}`,
+          padding: '0.85rem 1.25rem',
+        }}
+      >
+        <div
+          style={{
+            maxWidth: '1240px',
+            margin: '0 auto',
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+            alignItems: 'center',
+            gap: '1rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+            <div
+              style={{
+                width: '2.5rem',
+                height: '2.5rem',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #D4AF37 0%, #E9C96A 100%)',
+                display: 'grid',
+                placeItems: 'center',
+                color: '#1A1A1A',
+                flexShrink: 0,
+              }}
+            >
+              <Car size={17} />
+            </div>
+            <h1 style={{ margin: 0, fontSize: '1.2rem', color: palette.text, fontWeight: 700, whiteSpace: 'nowrap' }}>
+              NepRide Vendor
+            </h1>
+          </div>
+
+          <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
+            {tabs.map((tab) => {
+              const isActionTab = tab.key === 'add_vehicle';
+              const isActive = activeTab === tab.key;
+
+              const handleTabClick = () => {
+                if (tab.key === 'add_vehicle') {
+                  handleAddVehicle();
+                  return;
+                }
+
+                setActiveTab(tab.key);
+              };
+
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={handleTabClick}
+                  disabled={!serviceAccessAllowed && tab.key === 'add_vehicle'}
+                  style={{
+                    border: isActionTab ? '1px solid #D4AF37' : 'none',
+                    borderRadius: '999px',
+                    minHeight: '40px',
+                    padding: '0.62rem 1rem',
+                    backgroundColor: isActive ? palette.accent : isActionTab ? '#FFFFFF' : 'transparent',
+                    color: isActive ? '#111111' : isActionTab ? '#A87A12' : '#6B7280',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.01em',
+                    cursor: !serviceAccessAllowed && tab.key === 'add_vehicle' ? 'not-allowed' : 'pointer',
+                    boxShadow: isActive ? 'inset 0 -2px 0 #b38b1d' : 'none',
+                    opacity: !serviceAccessAllowed && tab.key === 'add_vehicle' ? 0.7 : 1,
+                    transition: 'background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.38rem',
+                  }}
+                >
+                  {tab.key === 'add_vehicle' ? <Plus size={13} /> : null}
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.65rem', flexWrap: 'nowrap' }}>
+            <button
+              type="button"
+              onClick={handleGoToVerification}
+              style={{
+                border: '1px solid #D8DEE8',
+                backgroundColor: '#FFFFFF',
+                color: '#2D3748',
+                borderRadius: '999px',
+                minHeight: '40px',
+                padding: '0.45rem 0.75rem',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.38rem',
+                cursor: 'pointer',
+              }}
+            >
+              <Users size={13} /> Profile
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={{
+                border: '1px solid #F3B0B0',
+                backgroundColor: '#FFF7F7',
+                color: palette.rejected,
+                borderRadius: '999px',
+                minHeight: '40px',
+                padding: '0.45rem 0.75rem',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.38rem',
+                cursor: 'pointer',
+              }}
+            >
+              <LogOut size={13} /> Logout
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <main style={{ maxWidth: '1240px', margin: '0 auto', padding: '1.5rem' }}>
+        {activeTab === 'overview' && (
+        <section
+          style={{
+            ...cardStyle,
+            padding: '1.5rem',
+            marginBottom: '1rem',
+            background: 'linear-gradient(135deg, #FFFFFF 0%, #FFF9EB 100%)',
+          }}
+        >
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr',
+              gap: '1rem',
+              alignItems: 'stretch',
+            }}
+          >
+            <div>
+              <div style={{ marginBottom: '0.9rem' }}>
+                <span style={badgeStyle({ bg: palette.accentSoft, text: palette.accentDark, border: '#F2D88C' })}>
+                  Vendor Workspace
+                </span>
+              </div>
+              <h2 style={{ margin: 0, fontSize: '2rem', lineHeight: 1.15 }}>
+                Keep your fleet visible, your bookings moving, and your account ready for service.
+              </h2>
+              <p style={{ margin: '0.75rem 0 0', color: palette.textSecondary, fontSize: '0.98rem', maxWidth: '58rem' }}>
+                Track vehicle listings, review incoming bookings, and update booking states from one focused dashboard.
+              </p>
+
+              {message.text && (
+                <div
+                  style={{
+                    marginTop: '1rem',
+                    padding: '0.9rem 1rem',
+                    borderRadius: '14px',
+                    border: message.isError ? '1px solid #FCA5A5' : '1px solid #86EFAC',
+                    backgroundColor: message.isError ? '#FEF2F2' : '#ECFDF3',
+                    color: message.isError ? palette.rejected : palette.approved,
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  {message.text}
+                </div>
+              )}
+
+              {!serviceAccessAllowed && (
+                <div
+                  style={{
+                    marginTop: '1rem',
+                    padding: '0.95rem 1rem',
+                    borderRadius: '14px',
+                    border: '1px solid #FDBA74',
+                    backgroundColor: '#FFF7ED',
+                    color: '#9A3412',
+                    fontSize: '0.92rem',
+                  }}
+                >
+                  <strong>Service locked.</strong> {serviceLockMessage} Current status: {verificationLabel}.
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '1.25rem' }}>
+                <button type="button" onClick={handleAddVehicle} disabled={!serviceAccessAllowed} style={{ ...actionButtonStyle, opacity: serviceAccessAllowed ? 1 : 0.65, cursor: serviceAccessAllowed ? 'pointer' : 'not-allowed' }}>
+                  <Plus size={14} /> Add Vehicle
+                </button>
+                <button type="button" onClick={() => setActiveTab('vehicles')} style={actionButtonStyle}>
+                  <Car size={14} /> View Vehicles
+                </button>
+                <button type="button" onClick={() => setActiveTab('bookings')} style={actionButtonStyle}>
+                  <CalendarDays size={14} /> View Bookings
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+        )}
+
+        {loading ? (
+          <div style={{ ...cardStyle, padding: '2rem', textAlign: 'center', color: palette.textSecondary }}>Loading dashboard...</div>
+        ) : null}
+
+        {!loading && activeTab === 'overview' && (
+          <div style={{ display: 'grid', gap: '1rem' }}>
+            <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.9rem' }}>
+              {[
+                { key: 'vehicles', label: 'Vehicles', value: stats.vehicles, icon: Car },
+                { key: 'bookings', label: 'Bookings', value: stats.bookings, icon: CalendarDays },
+                { key: 'pending', label: 'Pending', value: stats.pendingBookings, icon: Package },
+                { key: 'revenue', label: 'Revenue', value: formatMoney(stats.revenue), icon: BadgeCheck },
+              ].map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => handleStatCardClick(item.key)}
+                    style={{
+                      ...cardStyle,
+                      width: '100%',
+                      padding: '1rem 1.1rem',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      transition: 'transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease',
+                    }}
+                    onMouseEnter={(event) => {
+                      event.currentTarget.style.transform = 'translateY(-1px)';
+                      event.currentTarget.style.boxShadow = '0 22px 48px rgba(15, 23, 42, 0.08)';
+                    }}
+                    onMouseLeave={(event) => {
+                      event.currentTarget.style.transform = 'translateY(0)';
+                      event.currentTarget.style.boxShadow = '0 18px 45px rgba(15, 23, 42, 0.05)';
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+                      <div>
+                        <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.8rem' }}>{item.label}</p>
+                        <h3 style={{ margin: '0.35rem 0 0', fontSize: '1.45rem' }}>{item.value}</h3>
+                      </div>
+                      <div
+                        style={{
+                          width: '2.8rem',
+                          height: '2.8rem',
+                          borderRadius: '14px',
+                          backgroundColor: palette.accentSoft,
+                          color: palette.accentDark,
+                          display: 'grid',
+                          placeItems: 'center',
+                        }}
+                      >
+                        <Icon size={18} />
+                      </div>
                     </div>
-                </div>
+                  </button>
+                );
+              })}
+            </section>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {[
-                        { label: 'My Vehicles', tab: 'vehicles' },
-                        { label: 'Booking Requests', tab: 'bookings' },
-                    ].map(({ label, tab }) => (
-                        <button
-                            key={tab}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1rem' }}>
+            <div style={{ ...cardStyle, padding: '1.2rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Recent vehicles</h3>
+                  <p style={{ margin: '0.25rem 0 0', color: palette.textSecondary, fontSize: '0.85rem' }}>Your latest published listings.</p>
+                </div>
+                <button type="button" onClick={() => setActiveTab('vehicles')} style={{ ...actionButtonStyle, padding: '0.55rem 0.8rem' }}>
+                  View all
+                </button>
+              </div>
+
+              {vehicles.length === 0 ? (
+                <div style={{ border: `1px dashed ${palette.border}`, borderRadius: '16px', padding: '1.75rem', textAlign: 'center', color: palette.textSecondary }}>
+                  <Package size={36} style={{ marginBottom: '0.6rem', color: palette.muted }} />
+                  <p style={{ margin: 0 }}>No vehicles listed yet.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: '0.9rem' }}>
+                  {vehicles.slice(0, 3).map((vehicle) => (
+                    <div key={vehicle._id} style={{ display: 'grid', gridTemplateColumns: '96px 1fr auto', gap: '0.9rem', padding: '0.85rem', border: `1px solid ${palette.border}`, borderRadius: '16px', backgroundColor: palette.surface, alignItems: 'center' }}>
+                      <div style={{ width: '96px', height: '72px', borderRadius: '14px', overflow: 'hidden', backgroundColor: '#E5E7EB' }}>
+                        <img
+                          src={vehicle.image}
+                          alt={vehicle.title || vehicle.name || 'Vehicle'}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      </div>
+
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '1rem' }}>{vehicle.title || vehicle.name}</h4>
+                        <p style={{ margin: '0.35rem 0 0', color: palette.textSecondary, fontSize: '0.85rem' }}>
+                          {vehicle.vehicleType || vehicle.type} • {vehicle.fuelType || vehicle.fuel} • {vehicle.seatCapacity ?? vehicle.seats} seats
+                        </p>
+                      </div>
+
+                      <div style={{ textAlign: 'right' }}>
+                        <strong style={{ color: palette.accentDark }}>{formatMoney(vehicle.pricePerDay)} / day</strong>
+                        <div style={{ marginTop: '0.45rem', display: 'flex', gap: '0.45rem', justifyContent: 'flex-end' }}>
+                          <button
                             type="button"
-                            onClick={() => setActiveTab(tab)}
-                            style={{
-                                borderRadius: '999px',
-                                padding: '0.72rem 1.05rem',
-                                backgroundColor: activeTab === tab ? palette.accent : palette.card,
-                                color: palette.text,
-                                fontSize: '0.92rem',
-                                fontWeight: 700,
-                                letterSpacing: '0.01em',
-                                cursor: 'pointer',
-                                border: `1px solid ${activeTab === tab ? palette.accent : palette.border}`,
-                                boxShadow: 'none',
-                                transition: 'background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease',
-                            }}
-                        >
-                            {label}
-                        </button>
-                    ))}
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.85rem', flexWrap: 'wrap' }}>
-                    {activeTab === 'vehicles' && (
-                        <button
-                            onClick={handleAddVehicle}
+                            onClick={() => handleEditVehicle(vehicle)}
                             disabled={!serviceAccessAllowed}
                             style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.45rem',
-                                padding: '0.56rem 1rem',
-                                backgroundColor: serviceAccessAllowed ? palette.accent : '#E5D2A0',
-                                color: palette.text,
-                                borderRadius: '8px',
-                                border: `1px solid ${palette.accent}`,
-                                fontWeight: 600,
-                                fontSize: '0.85rem',
-                                cursor: serviceAccessAllowed ? 'pointer' : 'not-allowed',
-                                transition: 'all 0.3s',
-                                opacity: serviceAccessAllowed ? 1 : 0.7,
+                              ...actionButtonStyle,
+                              padding: '0.5rem 0.75rem',
+                              opacity: serviceAccessAllowed ? 1 : 0.65,
+                              cursor: serviceAccessAllowed ? 'pointer' : 'not-allowed',
                             }}
-                        >
-                            <Plus size={16} /> Add Vehicle
-                        </button>
-                    )}
-                    <button
-                        type="button"
-                        onClick={handleGoToVerification}
-                        style={{
-                            border: `1px solid ${palette.border}`,
-                            backgroundColor: palette.card,
-                            color: palette.text,
-                            borderRadius: '999px',
-                            padding: '0.48rem 0.85rem',
-                            fontSize: '0.82rem',
-                            fontWeight: 700,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.45rem',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '1rem' }} aria-hidden="true">
-                            {isVerified ? '✔️' : ''}
-                        </span>
-                        <span>Profile</span>
-                        {!isVerified && (
-                            <span style={{ color: palette.textSecondary, fontWeight: 600 }}>
-                                {verificationLabel === 'Not Submitted' ? 'Verify' : verificationLabel}
-                            </span>
-                        )}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleLogout}
-                        style={{
-                            border: `1px solid ${palette.rejected}`,
-                            backgroundColor: '#FEF2F2',
-                            color: palette.rejected,
-                            borderRadius: '999px',
-                            padding: '0.48rem 0.85rem',
-                            fontSize: '0.82rem',
-                            fontWeight: 700,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.42rem',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <LogOut size={15} />
-                        Logout
-                    </button>
-                </div>
-            </nav>
-
-            {/* Main Content */}
-            <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem' }}>
-                {!serviceAccessAllowed && (
-                    <section style={{ margin: '0 0 1rem 0', border: `1px solid ${palette.border}`, backgroundColor: palette.card, color: palette.text, borderRadius: '12px', padding: '0.9rem 1rem' }}>
-                        <strong style={{ color: palette.accent }}>Service Access Locked.</strong>
-                        <span style={{ marginLeft: '0.5rem' }}>{serviceLockMessage}</span>
-                        <span style={{ marginLeft: '0.65rem', color: palette.textSecondary }}>Current status: {verificationLabel}.</span>
-                    </section>
-                )}
-
-                {/* Main Section */}
-                {activeTab === 'vehicles' ? (
-                    <div>
-                        {/* Header with Title */}
-                        <h2 style={{ fontSize: '1.75rem', fontWeight: '700', color: palette.text, margin: '0 0 1.5rem 0' }}>Manage Vehicles</h2>
-
-                        {actionState.message && (
-                            <div
-                                style={{
-                                    marginBottom: '1rem',
-                                    padding: '0.75rem 1rem',
-                                    borderRadius: '8px',
-                                    fontSize: '0.9rem',
-                                    border: actionState.isError ? `1px solid ${palette.rejected}60` : `1px solid ${palette.approved}60`,
-                                    backgroundColor: actionState.isError ? '#ef444415' : '#16a34a15',
-                                    color: actionState.isError ? palette.rejected : palette.approved,
-                                }}
-                            >
-                                {actionState.message}
-                            </div>
-                        )}
-
-                        {/* Empty State or Vehicle List */}
-                        {loading ? (
-                            <div style={{ border: `2px dashed ${palette.border}`, backgroundColor: palette.card, borderRadius: '12px', padding: '4rem', textAlign: 'center' }}>
-                                <p style={{ color: palette.textSecondary, fontSize: '1.1rem' }}>Loading vehicles...</p>
-                            </div>
-                        ) : vehicles.length === 0 ? (
-                            <div style={{ border: `2px dashed ${palette.border}`, backgroundColor: palette.card, borderRadius: '12px', padding: '4rem', textAlign: 'center' }}>
-                                <Package size={48} style={{ margin: '0 auto 1rem', color: palette.notSubmitted, display: 'block' }} />
-                                <p style={{ color: palette.textSecondary, fontSize: '1.1rem' }}>You haven't added any vehicles yet.</p>
-                                <p style={{ color: palette.textSecondary, fontSize: '0.9rem', marginTop: '0.5rem' }}>Click "Add New Vehicle" to get started</p>
-                            </div>
-                        ) : (
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
-                                {vehicles.map((vehicle) => {
-                                    const title = vehicle.title || vehicle.name;
-                                    const type = vehicle.vehicleType || vehicle.type;
-                                    const seats = vehicle.seatCapacity ?? vehicle.seats;
-                                    const fuel = vehicle.fuelType || vehicle.fuel;
-
-                                    return (
-                                        <div
-                                            key={vehicle._id}
-                                            style={{
-                                                backgroundColor: palette.card, border: `1px solid ${palette.border}`,
-                                                borderRadius: '12px', overflow: 'hidden',
-                                                transition: 'border-color 0.3s',
-                                            }}
-                                        >
-                                            <div style={{ aspectRatio: '16/9', backgroundColor: '#F1F5F9', overflow: 'hidden' }}>
-                                                <img
-                                                    src={vehicle.image}
-                                                    alt={title}
-                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                />
-                                            </div>
-                                            <div style={{ padding: '1rem' }}>
-                                                <h3 style={{ fontSize: '1.2rem', fontWeight: '600', color: palette.text, marginBottom: '0.25rem' }}>
-                                                    {title}
-                                                </h3>
-                                                <p style={{ color: palette.textSecondary, fontSize: '0.875rem', marginBottom: '0.75rem' }}>{type}</p>
-                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                                                    <div>
-                                                        <p style={{ color: palette.textSecondary, fontSize: '0.75rem' }}>Price per day</p>
-                                                        <p style={{ color: palette.accent, fontSize: '1.25rem', fontWeight: '700' }}>
-                                                            Rs. {Number(vehicle.pricePerDay || 0).toLocaleString()} / day
-                                                        </p>
-                                                    </div>
-                                                    <div style={{ textAlign: 'right' }}>
-                                                        <p style={{ color: palette.textSecondary, fontSize: '0.875rem' }}>
-                                                            {seats} seats • {fuel}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                    <button
-                                                        onClick={() => handleEditVehicle(vehicle)}
-                                                        disabled={!serviceAccessAllowed}
-                                                        style={{
-                                                            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                            gap: '0.5rem', padding: '0.5rem 0.75rem', border: `1px solid ${palette.accent}`,
-                                                            color: '#A16207', borderRadius: '8px', backgroundColor: '#FFF8E1',
-                                                            cursor: serviceAccessAllowed ? 'pointer' : 'not-allowed', fontSize: '0.875rem', transition: 'all 0.3s',
-                                                            opacity: serviceAccessAllowed ? 1 : 0.65,
-                                                        }}
-                                                    >
-                                                        <Edit2 size={14} /> Edit
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteVehicle(vehicle._id)}
-                                                        disabled={deletingVehicleId === vehicle._id || !serviceAccessAllowed}
-                                                        style={{
-                                                            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                            gap: '0.5rem', padding: '0.5rem 0.75rem', border: `1px solid ${palette.rejected}`,
-                                                            color: palette.rejected, borderRadius: '8px', backgroundColor: '#FEF2F2',
-                                                            cursor: deletingVehicleId === vehicle._id || !serviceAccessAllowed ? 'not-allowed' : 'pointer',
-                                                            fontSize: '0.875rem', transition: 'all 0.3s',
-                                                            opacity: deletingVehicleId === vehicle._id || !serviceAccessAllowed ? 0.7 : 1,
-                                                        }}
-                                                    >
-                                                        <Trash2 size={14} /> {deletingVehicleId === vehicle._id ? 'Deleting...' : 'Delete'}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
+                          >
+                            <Edit2 size={13} /> Edit
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                ) : (
-                    <div>
-                        {/* Bookings Header */}
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <h2 style={{ fontSize: '1.75rem', fontWeight: '700', color: palette.text, margin: 0 }}>Customer Bookings</h2>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ ...cardStyle, padding: '1.2rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Booking health</h3>
+              <p style={{ margin: '0.25rem 0 1rem', color: palette.textSecondary, fontSize: '0.85rem' }}>Current distribution of booking states.</p>
+
+              <div style={{ display: 'grid', gap: '0.75rem' }}>
+                {[
+                  { key: 'confirmed', label: 'Confirmed', value: stats.confirmedBookings, color: palette.approved },
+                  { key: 'completed', label: 'Completed', value: stats.completedBookings, color: '#2563EB' },
+                  { key: 'pending_payment', label: 'Pending', value: stats.pendingBookings, color: palette.underReview },
+                  { key: 'cancelled', label: 'Cancelled', value: stats.cancelledBookings, color: palette.rejected },
+                ].map((item) => {
+                  const isSelected = bookingStatusFilter === item.key;
+
+                  return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => {
+                      setBookingStatusFilter(item.key);
+                      setActiveTab('bookings');
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '0.9rem 1rem',
+                      borderRadius: '14px',
+                      border: `1px solid ${isSelected ? item.color : palette.border}`,
+                      backgroundColor: isSelected ? '#FFFFFF' : palette.surface,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      boxShadow: isSelected ? `0 0 0 2px ${item.color}20 inset` : 'none',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+                      <span style={{ color: isSelected ? palette.text : palette.textSecondary, fontWeight: 700 }}>{item.label}</span>
+                      <strong style={{ color: item.color }}>{item.value}</strong>
+                    </div>
+                  </button>
+                  );
+                })}
+              </div>
+            </div>
+            </div>
+          </div>
+        )}
+
+        {!loading && activeTab === 'vehicles' && (
+          <div style={{ ...cardStyle, padding: '1.2rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Vehicle listings</h3>
+                <p style={{ margin: '0.25rem 0 0', color: palette.textSecondary, fontSize: '0.85rem' }}>Edit or remove the vehicles you manage.</p>
+              </div>
+
+              <button type="button" onClick={handleAddVehicle} disabled={!serviceAccessAllowed} style={{ ...actionButtonStyle, opacity: serviceAccessAllowed ? 1 : 0.65, cursor: serviceAccessAllowed ? 'pointer' : 'not-allowed' }}>
+                <Plus size={14} /> Add Vehicle
+              </button>
+            </div>
+
+            {vehicles.length === 0 ? (
+              <div style={{ border: `1px dashed ${palette.border}`, borderRadius: '16px', padding: '2rem', textAlign: 'center', color: palette.textSecondary }}>
+                <Package size={40} style={{ marginBottom: '0.75rem', color: palette.muted }} />
+                <p style={{ margin: 0, fontWeight: 600 }}>No vehicles listed yet.</p>
+                <p style={{ margin: '0.35rem 0 0' }}>Add your first listing to start receiving booking requests.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                {vehicles.map((vehicle) => (
+                  <article key={vehicle._id} style={{ border: `1px solid ${palette.border}`, borderRadius: '18px', overflow: 'hidden', backgroundColor: palette.card }}>
+                    <div style={{ aspectRatio: '16 / 9', backgroundColor: '#E5E7EB' }}>
+                      <img
+                        src={vehicle.image}
+                        alt={vehicle.title || vehicle.name || 'Vehicle'}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    </div>
+
+                    <div style={{ padding: '1rem' }}>
+                      <h4 style={{ margin: 0, fontSize: '1.05rem' }}>{vehicle.title || vehicle.name}</h4>
+                      <p style={{ margin: '0.35rem 0 0', color: palette.textSecondary, fontSize: '0.85rem' }}>
+                        {vehicle.vehicleType || vehicle.type} • {vehicle.fuelType || vehicle.fuel} • {vehicle.seatCapacity ?? vehicle.seats} seats
+                      </p>
+
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginTop: '0.95rem' }}>
+                        <div>
+                          <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.78rem' }}>Price per day</p>
+                          <strong style={{ color: palette.accentDark }}>{formatMoney(vehicle.pricePerDay)}</strong>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleEditVehicle(vehicle)}
+                            disabled={!serviceAccessAllowed}
+                            style={{
+                              ...actionButtonStyle,
+                              padding: '0.52rem 0.72rem',
+                              opacity: serviceAccessAllowed ? 1 : 0.65,
+                              cursor: serviceAccessAllowed ? 'pointer' : 'not-allowed',
+                            }}
+                          >
+                            <Edit2 size={13} /> Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteVehicle(vehicle._id)}
+                            disabled={deletingVehicleId === vehicle._id || !serviceAccessAllowed}
+                            style={{
+                              ...actionButtonStyle,
+                              border: '1px solid #FCA5A5',
+                              backgroundColor: '#FEF2F2',
+                              color: palette.rejected,
+                              padding: '0.52rem 0.72rem',
+                              opacity: deletingVehicleId === vehicle._id || !serviceAccessAllowed ? 0.65 : 1,
+                              cursor: deletingVehicleId === vehicle._id || !serviceAccessAllowed ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            <Trash2 size={13} /> {deletingVehicleId === vehicle._id ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!loading && activeTab === 'bookings' && (
+          <div style={{ ...cardStyle, padding: '1.2rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Booking requests</h3>
+                <p style={{ margin: '0.25rem 0 0', color: palette.textSecondary, fontSize: '0.85rem' }}>Review incoming requests and move them through the workflow.</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+              {[
+                { key: 'all', label: 'All' },
+                { key: 'pending_payment', label: 'Pending' },
+                { key: 'confirmed', label: 'Confirmed' },
+                { key: 'completed', label: 'Completed' },
+                { key: 'cancelled', label: 'Cancelled' },
+              ].map((filter) => {
+                const isActive = bookingStatusFilter === filter.key;
+
+                return (
+                  <button
+                    key={filter.key}
+                    type="button"
+                    onClick={() => setBookingStatusFilter(filter.key)}
+                    style={{
+                      borderRadius: '999px',
+                      border: `1px solid ${isActive ? palette.accentDark : palette.border}`,
+                      backgroundColor: isActive ? palette.accentSoft : palette.card,
+                      color: isActive ? palette.accentDark : palette.textSecondary,
+                      padding: '0.45rem 0.8rem',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {filter.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {filteredBookings.length === 0 ? (
+              <div style={{ border: `1px dashed ${palette.border}`, borderRadius: '16px', padding: '2rem', textAlign: 'center', color: palette.textSecondary }}>
+                <Package size={40} style={{ marginBottom: '0.75rem', color: palette.muted }} />
+                <p style={{ margin: 0, fontWeight: 600 }}>No bookings found for this status.</p>
+                <p style={{ margin: '0.35rem 0 0' }}>Try a different filter or choose All.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: '0.95rem' }}>
+                {filteredBookings.map((booking) => {
+                  const normalizedStatus = booking.normalizedStatus;
+                  const meta = bookingStatusMeta(normalizedStatus);
+                  const canUpdate = serviceAccessAllowed && updatingBookingId !== booking._id;
+
+                  return (
+                    <article key={booking._id} style={{ border: `1px solid ${palette.border}`, borderRadius: '18px', padding: '1rem', backgroundColor: palette.surface }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '1rem', flexWrap: 'wrap' }}>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: '1rem' }}>{booking.vehicle?.title || booking.vehicle?.name || 'Vehicle booking'}</h4>
+                          <p style={{ margin: '0.35rem 0 0', color: palette.textSecondary, fontSize: '0.85rem' }}>
+                            Customer: {booking.customer?.name || 'Unknown'} • {booking.customer?.email || 'No email'}
+                          </p>
+                          <p style={{ margin: '0.25rem 0 0', color: palette.textSecondary, fontSize: '0.85rem' }}>
+                            {formatDateRange(booking.startDate, booking.endDate)} • {booking.totalDays || '--'} day(s)
+                          </p>
                         </div>
 
-                        {/* Empty State or Booking List */}
-                        {loading ? (
-                            <div style={{ border: `2px dashed ${palette.border}`, backgroundColor: palette.card, borderRadius: '12px', padding: '4rem', textAlign: 'center' }}>
-                                <p style={{ color: palette.textSecondary, fontSize: '1.1rem' }}>Loading bookings...</p>
-                            </div>
-                        ) : bookings.length === 0 ? (
-                            <div style={{ border: `2px dashed ${palette.border}`, backgroundColor: palette.card, borderRadius: '12px', padding: '4rem', textAlign: 'center' }}>
-                                <Package size={48} style={{ margin: '0 auto 1rem', color: palette.notSubmitted, display: 'block' }} />
-                                <p style={{ color: palette.textSecondary, fontSize: '1.1rem' }}>No booking requests yet.</p>
-                                <p style={{ color: palette.textSecondary, fontSize: '0.9rem', marginTop: '0.5rem' }}>
-                                    Customers will see your vehicles and can request bookings
-                                </p>
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                {bookings.map((booking) => (
-                                    <div
-                                        key={booking._id}
-                                        style={{
-                                            backgroundColor: palette.card, border: `1px solid ${palette.border}`,
-                                            borderRadius: '12px', padding: '1.5rem',
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                                            <h3 style={{ color: palette.text, fontWeight: '600', margin: 0 }}>
-                                                {booking.vehicle?.title || booking.vehicle?.name}
-                                            </h3>
-                                            <span style={{
-                                                padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.8rem', fontWeight: '600',
-                                                backgroundColor: booking.status === 'Confirmed' ? '#22C55E1A' : booking.status === 'Cancelled' ? '#EF44441A' : '#F59E0B1A',
-                                                color: booking.status === 'Confirmed' ? palette.approved : booking.status === 'Cancelled' ? palette.rejected : palette.underReview,
-                                            }}>
-                                                {booking.status}
-                                            </span>
-                                        </div>
-                                        <p style={{ color: palette.textSecondary, fontSize: '0.875rem', margin: '0.25rem 0' }}>
-                                            Customer: {booking.customer?.name} ({booking.customer?.email})
-                                        </p>
-                                        <p style={{ color: palette.textSecondary, fontSize: '0.875rem', margin: '0.25rem 0' }}>
-                                            From: {new Date(booking.startDate).toLocaleDateString()} —
-                                            To: {new Date(booking.endDate).toLocaleDateString()}
-                                        </p>
-                                        <p style={{ color: palette.textSecondary, fontSize: '0.875rem', margin: '0.25rem 0' }}>
-                                            Days: {Number(booking.totalDays || 0) || '--'}
-                                        </p>
-                                        <p style={{ color: palette.accent, fontWeight: '600', margin: '0.5rem 0 0' }}>
-                                            Total: Rs. {Number(booking.totalPrice || 0).toLocaleString()}
-                                        </p>
-                                    </div>
-                                ))}
-                            </div>
+                        <span style={badgeStyle(meta)}>{meta.label}</span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginTop: '1rem' }}>
+                        <div style={{ padding: '0.8rem', borderRadius: '14px', border: `1px solid ${palette.border}`, backgroundColor: palette.card }}>
+                          <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.78rem' }}>Payment status</p>
+                          <strong>{booking.paymentStatus || 'Unpaid'}</strong>
+                        </div>
+                        <div style={{ padding: '0.8rem', borderRadius: '14px', border: `1px solid ${palette.border}`, backgroundColor: palette.card }}>
+                          <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.78rem' }}>Total</p>
+                          <strong>{formatMoney(booking.totalPrice)}</strong>
+                        </div>
+                        <div style={{ padding: '0.8rem', borderRadius: '14px', border: `1px solid ${palette.border}`, backgroundColor: palette.card }}>
+                          <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.78rem' }}>Booking state</p>
+                          <strong style={{ textTransform: 'capitalize' }}>{normalizedStatus.replace('_', ' ')}</strong>
+                        </div>
+                        {normalizeBookingStatus(booking.status) === 'pending_payment' && (
+                          <div style={{ padding: '0.8rem', borderRadius: '14px', border: `1px solid ${palette.border}`, backgroundColor: palette.card }}>
+                            <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.78rem' }}>Pending payment timer</p>
+                            <strong style={{ color: booking.isExpiredPending ? palette.rejected : palette.underReview }}>
+                              {booking.isExpiredPending ? 'Expired' : formatCountdown(booking.remainingSeconds)}
+                            </strong>
+                          </div>
                         )}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
+                        {normalizedStatus === 'pending_payment' && (
+                          <button
+                            type="button"
+                            onClick={() => handleBookingStatusUpdate(booking._id, 'Confirmed')}
+                            disabled={!canUpdate}
+                            style={{
+                              ...actionButtonStyle,
+                              padding: '0.55rem 0.78rem',
+                              opacity: canUpdate ? 1 : 0.65,
+                              cursor: canUpdate ? 'pointer' : 'not-allowed',
+                            }}
+                          >
+                            <BadgeCheck size={13} /> Confirm
+                          </button>
+                        )}
+
+                        {normalizedStatus === 'confirmed' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleBookingStatusUpdate(booking._id, 'Completed')}
+                              disabled={!canUpdate}
+                              style={{
+                                ...actionButtonStyle,
+                                padding: '0.55rem 0.78rem',
+                                opacity: canUpdate ? 1 : 0.65,
+                                cursor: canUpdate ? 'pointer' : 'not-allowed',
+                              }}
+                            >
+                              <BadgeCheck size={13} /> Complete
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleBookingStatusUpdate(booking._id, 'Cancelled')}
+                              disabled={!canUpdate}
+                              style={{
+                                ...actionButtonStyle,
+                                border: '1px solid #FCA5A5',
+                                backgroundColor: '#FEF2F2',
+                                color: palette.rejected,
+                                padding: '0.55rem 0.78rem',
+                                opacity: canUpdate ? 1 : 0.65,
+                                cursor: canUpdate ? 'pointer' : 'not-allowed',
+                              }}
+                            >
+                              <Trash2 size={13} /> Cancel
+                            </button>
+                          </>
+                        )}
+
+                        {(normalizedStatus === 'completed' || normalizedStatus === 'cancelled') && (
+                          <span style={{ color: palette.textSecondary, fontSize: '0.85rem', fontWeight: 600 }}>
+                            No further actions available.
+                          </span>
+                        )}
+
+                        {updatingBookingId === booking._id && (
+                          <span style={{ color: palette.textSecondary, fontSize: '0.85rem', fontWeight: 600 }}>
+                            Updating booking...
+                          </span>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  );
 };
 
 export default VendorDashboard;

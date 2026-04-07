@@ -8,6 +8,12 @@ import {
   normalizeRole,
 } from "../utils/verification.js";
 
+const createAuthToken = (userId) => {
+  return jwt.sign({ userId }, process.env.JWT_SECRET, {
+    expiresIn: "7d",
+  });
+};
+
 export const register = async (req, res) => {
   const { name, email, password, phone, role } = req.body;
   if (!name || !email || !password || !phone) {
@@ -35,16 +41,13 @@ export const register = async (req, res) => {
     });
     await user.save();
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "7d",
-    });
+    const token = createAuthToken(user._id);
 
-    res.cookie("token", token, {
+    res.clearCookie("token", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     await sendWelcomeEmail({
@@ -54,6 +57,7 @@ export const register = async (req, res) => {
     return res.json({
       success: true,
       message: "Registered successfully",
+      token,
       user: {
         name: user.name,
         role: normalizeRole(user.role),
@@ -104,20 +108,18 @@ export const login = async (req, res) => {
     const normalizedRole = normalizeRole(user.role);
     const { isServiceAccessAllowed, verificationStatus, verification } = getVerificationAccessPayload(user);
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "7d",
-    });
+    const token = createAuthToken(user._id);
 
-    res.cookie("token", token, {
+    res.clearCookie("token", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
     return res.json({
       success: true,
       message: "Logged in successfully",
+      token,
       user: {
         name: user.name,
         role: normalizedRole,
@@ -158,7 +160,17 @@ export const logout = async (req, res) => {
 
 export const isAuthenticated = async (req, res) => {
   try {
-    const userId = req.body.userId;
+    const authHeader = String(req.headers.authorization || "");
+    const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    const userToken = bearerToken || req.cookies?.token || "";
+
+    if (!userToken) {
+      return res.json({ success: false, message: "Auth token not found" });
+    }
+
+    const decoded = jwt.verify(userToken, process.env.JWT_SECRET);
+    const userId = decoded.userId || decoded.id;
+
     if (!userId) {
       return res.json({ success: false, message: "User ID not found in token" });
     }

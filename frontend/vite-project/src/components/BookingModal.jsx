@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Clock3, X } from 'lucide-react';
+import { apiFetch } from '../utils/apiFetch';
 
 const HOURS = Array.from({ length: 24 }, (_, index) => index);
 const MINUTES = [0, 15, 30, 45];
@@ -15,6 +16,8 @@ const formatDateField = (date) => {
 };
 
 const formatTimeField = (time) => `${pad(time.hour)}:${pad(time.minute)}`;
+
+const fetch = apiFetch;
 
 const combineDateAndTime = (date, time) => {
     if (!date || !time) return null;
@@ -43,6 +46,7 @@ const BookingModal = ({ vehicle, onClose, onBookingCreated, isServiceAccessAllow
     const [calendarMonth, setCalendarMonth] = useState(initialMonth);
     const [bookingLoading, setBookingLoading] = useState(false);
     const [bookingError, setBookingError] = useState('');
+    const [availabilitySuggestion, setAvailabilitySuggestion] = useState(null);
 
     const startDateTime = useMemo(() => combineDateAndTime(startDate, startTime), [startDate, startTime]);
     const endDateTime = useMemo(() => combineDateAndTime(endDate, endTime), [endDate, endTime]);
@@ -87,6 +91,35 @@ const BookingModal = ({ vehicle, onClose, onBookingCreated, isServiceAccessAllow
     const isFormValid = Boolean(startDateTime && endDateTime && !validationError);
     const isServiceLocked = !isServiceAccessAllowed;
 
+    const formatSuggestedDateTime = (isoString) => {
+        if (!isoString) return '';
+
+        return new Date(isoString).toLocaleString([], {
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+        });
+    };
+
+    const applyAvailabilitySuggestion = () => {
+        if (!availabilitySuggestion?.nextAvailableStart || !availabilitySuggestion?.nextAvailableEnd) return;
+
+        const suggestedStart = new Date(availabilitySuggestion.nextAvailableStart);
+        const suggestedEnd = new Date(availabilitySuggestion.nextAvailableEnd);
+
+        if (Number.isNaN(suggestedStart.getTime()) || Number.isNaN(suggestedEnd.getTime())) return;
+
+        setStartDate(new Date(suggestedStart));
+        setEndDate(new Date(suggestedEnd));
+        setStartTime({ hour: suggestedStart.getHours(), minute: suggestedStart.getMinutes() });
+        setEndTime({ hour: suggestedEnd.getHours(), minute: suggestedEnd.getMinutes() });
+        setBookingError('');
+        setAvailabilitySuggestion(null);
+    };
+
     const startOfMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
     const endOfMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0);
     const leadingBlankCount = startOfMonth.getDay();
@@ -119,6 +152,8 @@ const BookingModal = ({ vehicle, onClose, onBookingCreated, isServiceAccessAllow
     const handleSelectDate = (date) => {
         if (!date || isPastDate(date)) return;
 
+        setAvailabilitySuggestion(null);
+
         if (calendarTarget === 'start') {
             setStartDate(date);
             if (endDate && toStartOfDay(endDate) < toStartOfDay(date)) {
@@ -142,6 +177,7 @@ const BookingModal = ({ vehicle, onClose, onBookingCreated, isServiceAccessAllow
         const setter = target === 'start' ? setStartTime : setEndTime;
         setter((current) => ({ ...current, [timePart]: value }));
         setBookingError('');
+        setAvailabilitySuggestion(null);
     };
 
     const handleOpenCalendar = (target) => {
@@ -163,6 +199,7 @@ const BookingModal = ({ vehicle, onClose, onBookingCreated, isServiceAccessAllow
         try {
             setBookingLoading(true);
             setBookingError('');
+            setAvailabilitySuggestion(null);
 
             const response = await fetch('/api/bookings/', {
                 method: 'POST',
@@ -178,9 +215,12 @@ const BookingModal = ({ vehicle, onClose, onBookingCreated, isServiceAccessAllow
             const data = await response.json();
 
             if (!response.ok || !data.success) {
-                throw new Error(data.message || 'Booking failed. Please try again.');
+                setBookingError(data.message || 'Booking failed. Please try again.');
+                setAvailabilitySuggestion(data.availability || null);
+                return;
             }
 
+            setAvailabilitySuggestion(null);
             if (onBookingCreated) {
                 onBookingCreated(data.booking);
             }
@@ -522,7 +562,35 @@ const BookingModal = ({ vehicle, onClose, onBookingCreated, isServiceAccessAllow
                 </div>
 
                 {(bookingError || validationError) && (
-                    <p style={{ color: '#f87171', marginBottom: '1rem' }}>{bookingError || validationError}</p>
+                    <div style={{ marginBottom: '1rem' }}>
+                        <p style={{ color: '#f87171', margin: '0 0 0.6rem' }}>{bookingError || validationError}</p>
+
+                        {availabilitySuggestion?.nextAvailableStart && availabilitySuggestion?.nextAvailableEnd && (
+                            <div style={{ border: '1px solid rgba(219,179,59,0.35)', backgroundColor: 'rgba(219,179,59,0.08)', borderRadius: '10px', padding: '0.85rem' }}>
+                                <p style={{ margin: 0, color: '#DBB33B', fontWeight: 700 }}>
+                                    Next available slot: {formatSuggestedDateTime(availabilitySuggestion.nextAvailableStart)} to {formatSuggestedDateTime(availabilitySuggestion.nextAvailableEnd)}
+                                </p>
+                                <p style={{ margin: '0.35rem 0 0.75rem', color: '#d7d7d7', fontSize: '0.92rem' }}>
+                                    The selected vehicle is free again at that time. You can use this slot instead.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={applyAvailabilitySuggestion}
+                                    style={{
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        padding: '0.7rem 0.95rem',
+                                        backgroundColor: '#DBB33B',
+                                        color: '#111',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    Use suggested slot
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 )}
 
                 <button
