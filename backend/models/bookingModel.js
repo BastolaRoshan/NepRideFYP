@@ -52,6 +52,16 @@ const bookingSchema = new mongoose.Schema({
         trim: true,
         default: '',
     },
+    paymentProvider: {
+        type: String,
+        trim: true,
+        default: '',
+    },
+    khaltiPidx: {
+        type: String,
+        trim: true,
+        default: '',
+    },
     expiresAt: {
         type: Date,
         default: null,

@@ -3,7 +3,36 @@ import vehicleModel from "../models/vehicleModel.js";
 
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
 const PAYMENT_WINDOW_MS = 10 * 60 * 1000;
+const KHALTI_API_BASE_URL = process.env.NODE_ENV === 'production'
+    ? 'https://khalti.com/api/v2'
+    : 'https://dev.khalti.com/api/v2';
 const ACTIVE_BLOCKING_STATUSES = ['active', 'Active', 'confirmed', 'Confirmed'];
+
+const getFrontendOrigin = (req) => {
+    const configuredOrigin = String(process.env.FRONTEND_URL || '').trim();
+
+    if (configuredOrigin) {
+        return configuredOrigin.replace(/\/$/, '');
+    }
+
+    const requestOrigin = String(req.get('origin') || '').trim();
+    if (requestOrigin) {
+        return requestOrigin.replace(/\/$/, '');
+    }
+
+    return 'http://localhost:5173';
+};
+
+const getBookingAmountInPaisa = (booking) => Math.round(Number(booking?.totalPrice || 0) * 100);
+
+const getKhaltiErrorMessage = async (response) => {
+    try {
+        const payload = await response.json();
+        return payload?.detail || payload?.message || 'Khalti payment request failed.';
+    } catch {
+        return 'Khalti payment request failed.';
+    }
+};
 
 const normalizeStatus = (value) => {
     const normalized = String(value || '').trim().toLowerCase();
@@ -421,6 +450,188 @@ export const confirmBookingPayment = async (req, res) => {
         await booking.save();
 
         return res.json({ success: true, message: 'Booking confirmed successfully', booking: mapBookingWithComputedFields(booking) });
+    } catch (error) {
+        return res.json({ success: false, message: error.message });
+    }
+};
+
+export const initiateKhaltiPayment = async (req, res) => {
+    try {
+        const booking = await bookingModel.findById(req.params.id);
+
+        if (!booking) {
+            return res.json({ success: false, message: 'Booking not found' });
+        }
+
+        const access = await canAccessBooking(booking, req.user);
+        if (!access) {
+            return res.json({ success: false, message: 'Not authorized to pay for this booking' });
+        }
+
+        if (booking.status === 'cancelled') {
+            return res.json({ success: false, message: 'Booking is already cancelled' });
+        }
+
+        if (booking.status === 'confirmed' || booking.paymentStatus === 'Paid') {
+            return res.json({ success: true, message: 'Booking already confirmed', booking: mapBookingWithComputedFields(booking) });
+        }
+
+        if (booking.expiresAt && booking.expiresAt.getTime() < Date.now()) {
+            booking.status = 'cancelled';
+            booking.cancelledAt = new Date();
+            booking.cancellationReason = 'Payment session expired';
+            booking.expiresAt = null;
+            await booking.save();
+            return res.json({ success: false, message: 'Booking payment window has expired', booking: mapBookingWithComputedFields(booking) });
+        }
+
+        const amount = getBookingAmountInPaisa(booking);
+        if (!Number.isFinite(amount) || amount <= 0) {
+            return res.json({ success: false, message: 'Invalid booking amount' });
+        }
+
+        const frontendOrigin = getFrontendOrigin(req);
+        const returnUrl = `${frontendOrigin}/payment/${booking._id}`;
+        const websiteUrl = frontendOrigin;
+
+        const initiateResponse = await fetch(`${KHALTI_API_BASE_URL}/epayment/initiate/`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Key ${process.env.KHALTI_SECRET_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                return_url: returnUrl,
+                website_url: websiteUrl,
+                amount,
+                purchase_order_id: String(booking._id),
+                purchase_order_name: booking.vehicle?.title || booking.vehicle?.name || `Booking ${booking._id}`,
+                customer_info: {
+                    name: req.user?.name || req.user?.fullName || '',
+                    email: req.user?.email || '',
+                    phone: req.user?.phone || req.user?.mobile || '',
+                },
+            }),
+        });
+
+        if (!initiateResponse.ok) {
+            const message = await getKhaltiErrorMessage(initiateResponse);
+            return res.json({ success: false, message });
+        }
+
+        const data = await initiateResponse.json();
+
+        booking.khaltiPidx = data?.pidx || booking.khaltiPidx || '';
+        booking.paymentProvider = 'Khalti';
+        booking.paymentMethod = 'Khalti';
+        await booking.save();
+
+        return res.json({
+            success: true,
+            message: 'Khalti payment initiated',
+            paymentUrl: data.payment_url,
+            pidx: data.pidx,
+            booking: mapBookingWithComputedFields(booking),
+        });
+    } catch (error) {
+        return res.json({ success: false, message: error.message });
+    }
+};
+
+export const verifyKhaltiPayment = async (req, res) => {
+    try {
+        const booking = await bookingModel.findById(req.params.id);
+
+        if (!booking) {
+            return res.json({ success: false, message: 'Booking not found' });
+        }
+
+        const access = await canAccessBooking(booking, req.user);
+        if (!access) {
+            return res.json({ success: false, message: 'Not authorized to verify this booking' });
+        }
+
+        if (booking.status === 'cancelled') {
+            return res.json({ success: false, message: 'Booking is already cancelled', booking: mapBookingWithComputedFields(booking) });
+        }
+
+        if (booking.status === 'confirmed' && booking.paymentStatus === 'Paid') {
+            return res.json({ success: true, message: 'Booking already confirmed', booking: mapBookingWithComputedFields(booking) });
+        }
+
+        const pidx = String(req.body?.pidx || req.query?.pidx || '').trim();
+        if (!pidx) {
+            return res.json({ success: false, message: 'Missing Khalti payment reference' });
+        }
+
+        if (booking.khaltiPidx && booking.khaltiPidx !== pidx) {
+            return res.json({ success: false, message: 'Payment reference does not match this booking' });
+        }
+
+        const lookupResponse = await fetch(`${KHALTI_API_BASE_URL}/epayment/lookup/`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Key ${process.env.KHALTI_SECRET_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ pidx }),
+        });
+
+        const lookupData = await lookupResponse.json();
+
+        if (!lookupResponse.ok) {
+            const statusText = String(lookupData?.detail || lookupData?.status || 'Khalti payment verification failed.');
+            return res.json({ success: false, message: statusText, booking: mapBookingWithComputedFields(booking) });
+        }
+
+        const expectedAmount = getBookingAmountInPaisa(booking);
+        const lookupAmount = Number(lookupData?.total_amount || 0);
+        const lookupStatus = String(lookupData?.status || '').trim();
+
+        if (lookupStatus !== 'Completed') {
+            return res.json({
+                success: false,
+                message: lookupStatus === 'User canceled'
+                    ? 'Payment was cancelled on Khalti.'
+                    : lookupStatus === 'Expired'
+                        ? 'Khalti payment link expired.'
+                        : 'Payment is not completed yet.',
+                booking: mapBookingWithComputedFields(booking),
+            });
+        }
+
+        if (lookupAmount !== expectedAmount) {
+            return res.json({ success: false, message: 'Payment amount mismatch', booking: mapBookingWithComputedFields(booking) });
+        }
+
+        const blockingBookings = await getBlockingBookings({
+            vehicleId: booking.vehicle,
+            excludeBookingId: booking._id,
+        });
+
+        const overlappingBooking = blockingBookings.find((blockingBooking) =>
+            isBookingBlocking(blockingBooking) && intervalsOverlap(
+                new Date(blockingBooking.startDate),
+                new Date(blockingBooking.endDate),
+                new Date(booking.startDate),
+                new Date(booking.endDate)
+            )
+        );
+
+        if (overlappingBooking) {
+            return res.json({ success: false, message: 'Vehicle is already booked for an overlapping time range.' });
+        }
+
+        booking.status = 'confirmed';
+        booking.paymentStatus = 'Paid';
+        booking.paymentMethod = 'Khalti';
+        booking.paymentProvider = 'Khalti';
+        booking.expiresAt = null;
+        booking.khaltiPidx = pidx;
+
+        await booking.save();
+
+        return res.json({ success: true, message: 'Khalti payment verified successfully', booking: mapBookingWithComputedFields(booking) });
     } catch (error) {
         return res.json({ success: false, message: error.message });
     }

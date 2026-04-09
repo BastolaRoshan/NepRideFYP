@@ -310,7 +310,7 @@ const BookingModal = ({ vehicle, onClose, onBookingCreated, isServiceAccessAllow
                     </div>
 
                     <div style={{ position: 'relative' }}>
-                        disabled={!isFormValid || bookingLoading || isServiceLocked}
+                        <label style={{ display: 'block', color: '#c9c9c9', marginBottom: '0.4rem', fontWeight: 600 }}>Start Time</label>
                         <button
                             onClick={() => handleOpenTimePicker('start')}
                             type="button"

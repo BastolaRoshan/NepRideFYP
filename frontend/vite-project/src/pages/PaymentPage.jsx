@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { apiFetch } from '../utils/apiFetch';
 import { getStoredServiceAccessAllowed, getStoredVerificationStatus, setSessionAuth, getSessionToken } from '../utils/sessionAuth';
 
@@ -38,6 +38,7 @@ const normalizeUiErrorMessage = (message) => {
 const PaymentPage = () => {
     const { bookingId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
 
     const [booking, setBooking] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -46,8 +47,10 @@ const PaymentPage = () => {
     const [serviceAccessAllowed, setServiceAccessAllowed] = useState(getStoredServiceAccessAllowed());
     const [remainingSeconds, setRemainingSeconds] = useState(0);
     const [paymentLoading, setPaymentLoading] = useState(false);
+    const [verificationLoading, setVerificationLoading] = useState(false);
     const [cancelled, setCancelled] = useState(false);
     const hasHandledExpiryRef = useRef(false);
+    const hasHandledKhaltiReturnRef = useRef(false);
 
     const normalizeVerificationStatus = (status) => {
         if (status === 'UnderReview') return 'Under Review';
@@ -205,25 +208,75 @@ const PaymentPage = () => {
             setPaymentLoading(true);
             setPageMessage('');
 
-            const response = await fetch(`/api/bookings/${bookingId}/confirm`, {
+            const response = await apiFetch(`/api/bookings/${bookingId}/khalti/initiate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ paymentMethod: 'Online' }),
+                body: JSON.stringify({}),
             });
 
             const data = await response.json();
             if (!response.ok || !data.success) {
-                throw new Error(data.message || 'Payment confirmation failed.');
+                throw new Error(data.message || 'Unable to start Khalti payment.');
             }
 
-            navigate(`/booking-confirmed/${bookingId}`);
+            if (!data.paymentUrl) {
+                throw new Error('Khalti did not return a payment link.');
+            }
+
+            window.location.assign(data.paymentUrl);
         } catch (error) {
             setPageMessage(error.message || 'Unable to complete payment.');
         } finally {
             setPaymentLoading(false);
         }
     };
+
+    const handleKhaltiReturn = useCallback(async ({ pidx, status }) => {
+        if (!pidx) return;
+
+        try {
+            setVerificationLoading(true);
+            setPageMessage('Verifying Khalti payment...');
+
+            const response = await apiFetch(`/api/bookings/${bookingId}/khalti/verify`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pidx, status }),
+            });
+
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || 'Unable to verify Khalti payment.');
+            }
+
+            setBooking(data.booking);
+            navigate(`/booking-confirmed/${bookingId}`);
+        } catch (error) {
+            setPageMessage(error.message || 'Unable to verify Khalti payment.');
+        } finally {
+            setVerificationLoading(false);
+        }
+    }, [bookingId, navigate]);
+
+    useEffect(() => {
+        if (!booking) return;
+
+        const query = new URLSearchParams(location.search);
+        const pidx = query.get('pidx');
+        if (!pidx || hasHandledKhaltiReturnRef.current) {
+            return;
+        }
+
+        const status = query.get('status') || '';
+        hasHandledKhaltiReturnRef.current = true;
+
+        if (status === 'User canceled') {
+            setPageMessage('Payment was cancelled on Khalti. You can try again while the booking window is open.');
+            return;
+        }
+
+        handleKhaltiReturn({ pidx, status });
+    }, [booking, handleKhaltiReturn, location.search]);
 
     const handleManualCancel = async () => {
         if (!serviceAccessAllowed) {
@@ -313,7 +366,7 @@ const PaymentPage = () => {
                     <button
                         type="button"
                         onClick={handlePayNow}
-                        disabled={paymentLoading || cancelled || booking?.status !== 'pending_payment' || !serviceAccessAllowed}
+                        disabled={paymentLoading || verificationLoading || cancelled || booking?.status !== 'pending_payment' || !serviceAccessAllowed}
                         style={{
                             flex: 1,
                             minWidth: '180px',
@@ -322,18 +375,18 @@ const PaymentPage = () => {
                             padding: '0.85rem 1rem',
                             fontSize: '1rem',
                             fontWeight: 700,
-                            backgroundColor: paymentLoading || cancelled || booking?.status !== 'pending_payment' || !serviceAccessAllowed ? '#655c42' : '#DBB33B',
+                            backgroundColor: paymentLoading || verificationLoading || cancelled || booking?.status !== 'pending_payment' || !serviceAccessAllowed ? '#655c42' : '#DBB33B',
                             color: '#111',
-                            cursor: paymentLoading || cancelled || booking?.status !== 'pending_payment' || !serviceAccessAllowed ? 'not-allowed' : 'pointer',
+                            cursor: paymentLoading || verificationLoading || cancelled || booking?.status !== 'pending_payment' || !serviceAccessAllowed ? 'not-allowed' : 'pointer',
                         }}
                     >
-                        {paymentLoading ? 'Processing...' : 'Pay Now'}
+                        {verificationLoading ? 'Verifying...' : paymentLoading ? 'Redirecting...' : 'Pay with Khalti'}
                     </button>
 
                     <button
                         type="button"
                         onClick={handleManualCancel}
-                        disabled={paymentLoading || cancelled || booking?.status !== 'pending_payment' || !serviceAccessAllowed}
+                        disabled={paymentLoading || verificationLoading || cancelled || booking?.status !== 'pending_payment' || !serviceAccessAllowed}
                         style={{
                             flex: 1,
                             minWidth: '180px',
@@ -344,7 +397,7 @@ const PaymentPage = () => {
                             fontWeight: 600,
                             backgroundColor: 'transparent',
                             color: '#f87171',
-                            cursor: paymentLoading || cancelled || booking?.status !== 'pending_payment' || !serviceAccessAllowed ? 'not-allowed' : 'pointer',
+                            cursor: paymentLoading || verificationLoading || cancelled || booking?.status !== 'pending_payment' || !serviceAccessAllowed ? 'not-allowed' : 'pointer',
                         }}
                     >
                         Cancel Booking
