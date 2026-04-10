@@ -34,24 +34,10 @@ const normalizeDocumentStatus = (value) => {
 const toSafeUser = (userDoc) => {
   const user = userDoc?.toObject ? userDoc.toObject() : userDoc;
   const documents = Array.isArray(user?.documents) ? user.documents : [];
-  
-  // If admin has reviewed and set a status, use that. Otherwise calculate from documents
-  const hasBeenReviewed = Boolean(user?.verificationReviewedAt);
-  let verificationStatus = user?.verificationStatus || "NotSubmitted";
-  let isServiceAccessAllowed = user?.isVerified || false;
-  let verification = null;
-  
-  if (!hasBeenReviewed) {
-    // Auto-calculate based on documents if not reviewed by admin
-    const verificationPayload = getVerificationAccessPayload(user);
-    verificationStatus = verificationPayload.verificationStatus;
-    isServiceAccessAllowed = verificationPayload.isServiceAccessAllowed;
-    verification = verificationPayload.verification;
-  } else {
-    // If reviewed, still calculate verification details but use stored status
-    const verificationPayload = getVerificationAccessPayload(user);
-    verification = verificationPayload.verification;
-  }
+  const verificationPayload = getVerificationAccessPayload(user);
+  const verificationStatus = verificationPayload.verificationStatus;
+  const isServiceAccessAllowed = verificationPayload.isServiceAccessAllowed;
+  const verification = verificationPayload.verification;
 
   return {
     _id: user._id,
@@ -537,7 +523,7 @@ export const updateUserVerification = async (req, res) => {
 
 export const updateUserAccountStatus = async (req, res) => {
   try {
-    const { accountStatus } = req.body;
+    const accountStatus = String(req.body?.accountStatus || "").trim().toLowerCase();
     const userId = req.params.id;
 
     const validStatuses = ["active", "suspended", "blocked"];
@@ -551,6 +537,13 @@ export const updateUserAccountStatus = async (req, res) => {
     }
 
     user.accountStatus = accountStatus;
+
+    if (accountStatus === "blocked" || accountStatus === "suspended") {
+      user.isVerified = false;
+    } else if (user.verificationStatus === "Approved") {
+      user.isVerified = true;
+    }
+
     await user.save();
 
     const updatedUser = await userModel.findById(userId).select("-password -verifyOtp -resetOtp");

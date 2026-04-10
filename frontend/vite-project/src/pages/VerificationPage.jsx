@@ -66,10 +66,6 @@ const VerificationPage = () => {
       return 'driving_license';
     }
 
-    if (normalized.includes('bluebook') || normalized.includes('bluebok')) {
-      return 'bluebook';
-    }
-
     if (normalized.includes('citizenship') || normalized.includes('nagarikta') || normalized.includes('nagari')) {
       if (normalized.includes('back') || normalized.includes('rear') || normalized.includes('reverse')) {
         return 'citizenship_back';

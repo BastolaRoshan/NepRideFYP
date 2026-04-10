@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronRight, Search, X, Save } from 'lucide-react';
 
 const palette = {
@@ -34,6 +34,16 @@ const DocumentPreviewModal = ({
   const [allowAccess, setAllowAccess] = useState(user?.isServiceAccessAllowed || false);
   const [documentSearch, setDocumentSearch] = useState('');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const nextStatus = user?.verificationStatus;
+
+    setSelectedDocumentId(String(user?.documents?.[0]?._id || ''));
+    setVerificationStatus(!nextStatus || nextStatus === 'NotSubmitted' ? 'UnderReview' : nextStatus);
+    setVerificationNote(user?.verificationNote || '');
+    setAllowAccess(user?.isServiceAccessAllowed || false);
+    setDocumentSearch('');
+  }, [user]);
 
   const documents = Array.isArray(user?.documents) ? user.documents : [];
   const query = documentSearch.trim().toLowerCase();
@@ -295,12 +305,12 @@ const DocumentPreviewModal = ({
                   <p
                     style={{
                       margin: '0.25rem 0 0',
-                      color: getStatusColor(selectedDocument.status),
+                      color: getStatusColor(verificationStatus),
                       fontSize: '0.95rem',
                       fontWeight: 700,
                     }}
                   >
-                    Status: {selectedDocument.status}
+                    Verification Status: {verificationStatus}
                   </p>
                 </div>
 

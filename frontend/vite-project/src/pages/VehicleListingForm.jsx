@@ -14,6 +14,7 @@ const initialFormState = {
   pricePerDay: '',
   fuelType: '',
   image: '',
+  bluebookUrl: '',
 };
 
 const vehicleTypeOptions = ['Car', 'Bike', 'EV'];
@@ -40,6 +41,7 @@ const VehicleListingForm = () => {
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState({});
   const [imagePreview, setImagePreview] = useState('');
+  const [bluebookPreview, setBluebookPreview] = useState('');
   const [submitState, setSubmitState] = useState({
     loading: false,
     message: '',
@@ -71,8 +73,10 @@ const VehicleListingForm = () => {
       pricePerDay: editVehicle.pricePerDay ?? '',
       fuelType: editVehicle.fuelType || editVehicle.fuel || '',
       image: editVehicle.image || '',
+      bluebookUrl: '',
     });
     setImagePreview(editVehicle.image || '');
+    setBluebookPreview('');
     setErrors({});
     setSubmitState({ loading: false, message: '', isError: false });
   }, [editVehicle, isEditMode]);
@@ -155,6 +159,25 @@ const VehicleListingForm = () => {
       setFormData((prev) => ({ ...prev, image: base64Image }));
       setImagePreview(base64Image);
       setErrors((prev) => ({ ...prev, image: '' }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleBluebookChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setErrors((prev) => ({ ...prev, bluebookUrl: 'File size should be 10MB or less.' }));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64File = typeof reader.result === 'string' ? reader.result : '';
+      setFormData((prev) => ({ ...prev, bluebookUrl: base64File }));
+      setBluebookPreview(file.name);
+      setErrors((prev) => ({ ...prev, bluebookUrl: '' }));
     };
     reader.readAsDataURL(file);
   };
@@ -593,6 +616,33 @@ const VehicleListingForm = () => {
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* Bluebook */}
+            <div style={{ marginTop: '2rem', padding: '1.5rem', backgroundColor: '#FFFBEB', borderRadius: '8px', border: '1px solid #F2D48A' }}>
+              <label style={labelStyle} htmlFor="bluebookUpload">Bluebook</label>
+              <label
+                htmlFor="bluebookUpload"
+                style={{
+                  marginTop: '0.5rem', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', gap: '0.5rem', padding: '0.75rem 1rem',
+                  borderRadius: '8px', border: errors.bluebookUrl ? `1px dashed ${palette.danger}` : '1px dashed #D8B95A',
+                  backgroundColor: '#FFFBEB', color: '#8A6A00',
+                  cursor: 'pointer', fontSize: '0.875rem', transition: 'all 0.3s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#FDE68A55'; e.currentTarget.style.borderColor = palette.accent; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#FFFBEB'; e.currentTarget.style.borderColor = errors.bluebookUrl ? palette.danger : '#D8B95A'; }}
+              >
+                <UploadCloud size={18} /> Choose Bluebook Image
+              </label>
+              <input id="bluebookUpload" type="file" accept="image/*,.pdf" onChange={handleBluebookChange} style={{ display: 'none' }} />
+              {errors.bluebookUrl && <p style={errorTextStyle}>{errors.bluebookUrl}</p>}
+              <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: palette.textSecondary }}>Upload your vehicle bluebook </p>
+              {bluebookPreview && (
+                <div style={{ marginTop: '0.75rem', padding: '0.5rem 0.75rem', borderRadius: '6px', backgroundColor: '#E7F5E8', color: '#1B4D2B', fontSize: '0.85rem' }}>
+                  ✓ {bluebookPreview}
+                </div>
+              )}
             </div>
 
             {/* Submit Button */}

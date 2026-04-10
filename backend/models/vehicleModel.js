@@ -72,6 +72,11 @@ const vehicleSchema = new mongoose.Schema({
         uppercase: true,
         unique: true,
     },
+    bluebookUrl: {
+        type: String,
+        trim: true,
+        default: '',
+    },
     vendor: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'user',

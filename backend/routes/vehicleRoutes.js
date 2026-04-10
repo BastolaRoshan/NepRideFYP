@@ -18,7 +18,7 @@ router.use(protect);
 router.use(authorizeRoles("Vendor", "Admin"));
 
 router.post("/", requireApprovedVerification, addVehicle);
-router.get("/vendor", getVendorVehicles);
+router.get("/vendor", requireApprovedVerification, getVendorVehicles);
 router.put("/:id", requireApprovedVerification, updateVehicle);
 router.delete("/:id", requireApprovedVerification, deleteVehicle);
 

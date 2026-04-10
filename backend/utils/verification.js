@@ -1,6 +1,6 @@
 const ROLE_REQUIREMENT_KEYS = {
   Customer: ["driving_license", "citizenship_front", "citizenship_back"],
-  Vendor: ["bluebook", "citizenship_front", "citizenship_back"],
+  Vendor: ["citizenship_front", "citizenship_back"],
   Admin: [],
 };
 
@@ -8,7 +8,6 @@ const KEY_TO_TITLE = {
   driving_license: "Driving License",
   citizenship_front: "Citizenship / Nagarikta (Front Side)",
   citizenship_back: "Citizenship / Nagarikta (Back Side)",
-  bluebook: "Bluebook",
 };
 
 const normalizeRole = (role) => {
@@ -26,6 +25,21 @@ const normalizeText = (value) => {
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
+};
+
+const normalizeVerificationStatus = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+
+  if (normalized === "approved") return "Approved";
+  if (normalized === "rejected") return "Rejected";
+  if (normalized === "underreview" || normalized === "under_review" || normalized === "under review") {
+    return "UnderReview";
+  }
+  if (normalized === "notsubmitted" || normalized === "not_submitted" || normalized === "not submitted") {
+    return "NotSubmitted";
+  }
+
+  return "";
 };
 
 export const normalizeDocumentKey = (title) => {
@@ -57,9 +71,7 @@ export const normalizeDocumentKey = (title) => {
     return "driving_license";
   }
 
-  if (normalized.includes("bluebook") || normalized.includes("bluebok")) {
-    return "bluebook";
-  }
+
 
   if (
     normalized.includes("citizenship") ||
@@ -168,21 +180,30 @@ export const getVerificationAccessPayload = (user) => {
   const accountStatus = String(user?.accountStatus || "active").toLowerCase();
   const accountAllowsService = accountStatus !== "suspended" && accountStatus !== "blocked";
 
+  const hasManualReview = Boolean(user?.verificationReviewedAt);
+  const reviewedStatus = normalizeVerificationStatus(user?.verificationStatus);
+
   let verificationStatus = "NotSubmitted";
 
-  if (isAdmin || verification.isApproved) {
+  if (isAdmin) {
     verificationStatus = "Approved";
-  } else if (verification.rejectedDocuments.length > 0) {
-    verificationStatus = "Rejected";
-  } else if (verification.missingDocuments.length === verification.requiredDocuments.length) {
-    verificationStatus = "NotSubmitted";
+  } else if (hasManualReview && reviewedStatus) {
+    verificationStatus = reviewedStatus;
   } else {
-    verificationStatus = "UnderReview";
+    if (verification.isApproved) {
+      verificationStatus = "Approved";
+    } else if (verification.rejectedDocuments.length > 0) {
+      verificationStatus = "Rejected";
+    } else if (verification.missingDocuments.length === verification.requiredDocuments.length) {
+      verificationStatus = "NotSubmitted";
+    } else {
+      verificationStatus = "UnderReview";
+    }
   }
 
   return {
     verificationStatus,
-    isServiceAccessAllowed: accountAllowsService && (isAdmin || verification.isApproved),
+    isServiceAccessAllowed: accountAllowsService && (isAdmin || verificationStatus === "Approved"),
     verification,
   };
 };

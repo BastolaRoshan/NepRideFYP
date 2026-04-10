@@ -1,4 +1,5 @@
 import vehicleModel from "../models/vehicleModel.js";
+import { getVerificationAccessPayload, normalizeRole } from "../utils/verification.js";
 
 const toFiniteNumber = (value) => {
     const parsed = Number(value);
@@ -233,21 +234,33 @@ export const getAllVehicles = async (req, res) => {
     try {
         const requestedLimit = toPositiveInteger(req.query.limit);
 
-        let query = vehicleModel
+        const query = vehicleModel
             .find()
             .sort({ createdAt: -1 })
-            .populate("vendor", "name email");
-
-        if (requestedLimit) {
-            query = query.limit(requestedLimit);
-        }
+            .populate("vendor", "name email role accountStatus verificationStatus verificationReviewedAt documents isVerified");
 
         const vehicles = await query;
+        const visibleVehicles = vehicles.filter((vehicle) => {
+            const vendor = vehicle?.vendor;
+
+            if (!vendor) {
+                return false;
+            }
+
+            if (normalizeRole(vendor.role) !== "Vendor") {
+                return false;
+            }
+
+            const { isServiceAccessAllowed } = getVerificationAccessPayload(vendor);
+            return isServiceAccessAllowed;
+        });
+
+        const limitedVehicles = requestedLimit ? visibleVehicles.slice(0, requestedLimit) : visibleVehicles;
 
         res.json({
             success: true,
-            count: vehicles.length,
-            vehicles: vehicles.map(mapVehicleResponse),
+            count: limitedVehicles.length,
+            vehicles: limitedVehicles.map(mapVehicleResponse),
         });
     } catch (error) {
         res.json({ success: false, message: error.message });

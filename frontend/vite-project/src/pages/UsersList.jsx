@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Eye } from 'lucide-react';
+import { Eye, Trash2 } from 'lucide-react';
 
 const palette = {
   bg: '#F8FAFC',
@@ -17,6 +17,7 @@ const palette = {
 const UsersList = ({
   users,
   onViewDocuments,
+  onDeleteUser,
   accountStatusDrafts = {},
   onUpdateAccountStatus,
   onSaveAccountStatus,
@@ -96,13 +97,19 @@ const UsersList = ({
     switch (status) {
       case 'active':
         return { bg: '#22C55E1A', text: '#15803d', border: '#22C55E66' };
-      case 'suspended':
-        return { bg: '#F59E0B1A', text: '#92400e', border: '#F59E0B66' };
       case 'blocked':
         return { bg: '#EF44441A', text: '#991b1b', border: '#EF444466' };
       default:
         return { bg: '#22C55E1A', text: '#15803d', border: '#22C55E66' };
     }
+  };
+
+  const normalizeAccountStatus = (status) => {
+    if (status === 'blocked' || status === 'suspended') {
+      return 'blocked';
+    }
+
+    return 'active';
   };
 
   const cardStyle = {
@@ -217,10 +224,10 @@ const UsersList = ({
               {filteredUsers.map((user) => {
                 const roleColor = getRoleColor(user.role);
                 const verificationColor = getVerificationStatusColor(user.verificationStatus);
-                const currentAccountStatus = accountStatusDrafts[user._id] || user.accountStatus || 'active';
+                const currentAccountStatus = normalizeAccountStatus(accountStatusDrafts[user._id] || user.accountStatus || 'active');
                 const accountStatusColor = getAccountStatusColor(currentAccountStatus);
                 const documentCount = Array.isArray(user.documents) ? user.documents.length : 0;
-                const isDirty = currentAccountStatus !== (user.accountStatus || 'active');
+                const isDirty = currentAccountStatus !== normalizeAccountStatus(user.accountStatus || 'active');
 
                 return (
                   <tr
@@ -278,7 +285,6 @@ const UsersList = ({
                           }}
                         >
                           <option value="active">Active</option>
-                          <option value="suspended">Suspended</option>
                           <option value="blocked">Blocked</option>
                         </select>
                         <button
@@ -299,9 +305,7 @@ const UsersList = ({
                         >
                           {savingAccountStatus[user._id]
                             ? 'Saving...'
-                            : user.accountStatus === 'blocked' && currentAccountStatus === 'active'
-                              ? 'Unblock'
-                              : 'Save'}
+                            : 'Save'}
                         </button>
                       </div>
                     </td>
@@ -311,32 +315,62 @@ const UsersList = ({
                     </td>
 
                     <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                      <button
-                        onClick={() => onViewDocuments(user)}
-                        style={{
-                          borderRadius: '6px',
-                          border: `1px solid ${palette.accent}`,
-                          backgroundColor: '#FFF8E1',
-                          color: '#A16207',
-                          padding: '0.35rem 0.65rem',
-                          cursor: 'pointer',
-                          fontSize: '0.75rem',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          fontWeight: 500,
-                          transition: 'all 0.2s',
-                        }}
-                        onMouseEnter={(event) => {
-                          event.currentTarget.style.backgroundColor = '#FDE68A';
-                        }}
-                        onMouseLeave={(event) => {
-                          event.currentTarget.style.backgroundColor = '#FFF8E1';
-                        }}
-                        title={`View ${documentCount} document${documentCount !== 1 ? 's' : ''}`}
-                      >
-                        <Eye size={13} /> View
-                      </button>
+                      <div style={{ display: 'inline-flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                        <button
+                          onClick={() => onViewDocuments(user)}
+                          style={{
+                            borderRadius: '6px',
+                            border: `1px solid ${palette.accent}`,
+                            backgroundColor: '#FFF8E1',
+                            color: '#A16207',
+                            padding: '0.35rem 0.65rem',
+                            cursor: 'pointer',
+                            fontSize: '0.75rem',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            fontWeight: 500,
+                            transition: 'all 0.2s',
+                          }}
+                          onMouseEnter={(event) => {
+                            event.currentTarget.style.backgroundColor = '#FDE68A';
+                          }}
+                          onMouseLeave={(event) => {
+                            event.currentTarget.style.backgroundColor = '#FFF8E1';
+                          }}
+                          title={`View ${documentCount} document${documentCount !== 1 ? 's' : ''}`}
+                        >
+                          <Eye size={13} /> View
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => onDeleteUser && onDeleteUser(user._id)}
+                          style={{
+                            borderRadius: '6px',
+                            border: '1px solid #FCA5A5',
+                            backgroundColor: '#FEF2F2',
+                            color: '#B91C1C',
+                            padding: '0.35rem 0.65rem',
+                            cursor: 'pointer',
+                            fontSize: '0.75rem',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            fontWeight: 500,
+                            transition: 'all 0.2s',
+                          }}
+                          onMouseEnter={(event) => {
+                            event.currentTarget.style.backgroundColor = '#FEE2E2';
+                          }}
+                          onMouseLeave={(event) => {
+                            event.currentTarget.style.backgroundColor = '#FEF2F2';
+                          }}
+                          title="Delete user"
+                        >
+                          <Trash2 size={13} /> Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

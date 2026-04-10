@@ -103,7 +103,6 @@ const Login = () => {
           <div className="auth-card-header">
             <h2 className="auth-brand">NepRide</h2>
             <h1 className="auth-title">Log in</h1>
-            <p className="auth-subtitle">Continue to your customer or vendor dashboard.</p>
           </div>
 
           {error && <div className="form-error" role="alert">{error}</div>}

@@ -378,6 +378,7 @@ const AdminDashboard = () => {
         [userId]: data.user?.accountStatus || status,
       }));
       setActionMessage({ message: 'Account status updated successfully.', isError: false });
+      window.alert('User status updated successfully.');
       handleRefresh();
     } catch (error) {
       setActionMessage({ message: error.message || 'Failed to update account status', isError: true });
@@ -719,6 +720,7 @@ const AdminDashboard = () => {
             <UsersList
               users={users}
               onViewDocuments={setSelectedUserForDocs}
+              onDeleteUser={deleteUser}
               accountStatusDrafts={accountStatusDrafts}
               onUpdateAccountStatus={updateAccountStatusDraft}
               onSaveAccountStatus={saveAccountStatus}
