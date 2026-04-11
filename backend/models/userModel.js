@@ -104,6 +104,17 @@ const userSchema = new mongoose.Schema({
     enum: ["active", "suspended", "blocked"],
     default: "active",
   },
+  vendorRatingAverage: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 5,
+  },
+  vendorRatingCount: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
 });
 
 const userModel = mongoose.models.user || mongoose.model("user", userSchema);

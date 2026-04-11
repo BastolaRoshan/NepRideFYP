@@ -4,7 +4,7 @@ import { Car, LogOut, Plus, Users } from 'lucide-react';
 import { apiFetch } from '../utils/apiFetch';
 import { clearSessionAuth, getSessionToken, getStoredVerificationStatus, setSessionAuth } from '../utils/sessionAuth';
 
-const palette = {
+const LIGHT_PALETTE = {
   bg: '#F6F1E8',
   shell: '#FFFDFC',
   card: '#FFFFFF',
@@ -19,6 +19,23 @@ const palette = {
   rejected: '#B91C1C',
   muted: '#94A3B8',
   surface: '#FBF8F1',
+};
+
+const DARK_CUSTOMER_PALETTE = {
+  bg: '#111111',
+  shell: '#0F0F0F',
+  card: '#141414',
+  border: '#2E2E2E',
+  accent: '#D4AF37',
+  accentDark: '#A87A12',
+  accentSoft: '#1F1A0B',
+  text: '#F3F4F6',
+  textSecondary: '#A9B3C7',
+  approved: '#22C55E',
+  underReview: '#F59E0B',
+  rejected: '#F87171',
+  muted: '#7A879C',
+  surface: '#121212',
 };
 
 const VERIFICATION_STATUS_META = {
@@ -38,6 +55,9 @@ const VerificationPage = () => {
   const [verification, setVerification] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [documentFiles, setDocumentFiles] = useState({});
+
+  const isCustomerTheme = String(userProfile?.role || '').toLowerCase() === 'customer';
+  const palette = isCustomerTheme ? DARK_CUSTOMER_PALETTE : LIGHT_PALETTE;
 
   const currentStatus = verification?.verificationStatus || 'NotSubmitted';
   const statusMeta = VERIFICATION_STATUS_META[currentStatus] || VERIFICATION_STATUS_META.NotSubmitted;
@@ -249,7 +269,9 @@ const VerificationPage = () => {
 
   const shellStyle = {
     minHeight: '100vh',
-    background: 'radial-gradient(circle at top left, rgba(212,175,55,0.18), transparent 32%), linear-gradient(180deg, #FCFAF5 0%, #F6F1E8 100%)',
+    background: isCustomerTheme
+      ? 'radial-gradient(circle at top left, rgba(212,175,55,0.18), transparent 34%), linear-gradient(180deg, #0B0B0B 0%, #111111 100%)'
+      : 'radial-gradient(circle at top left, rgba(212,175,55,0.18), transparent 32%), linear-gradient(180deg, #FCFAF5 0%, #F6F1E8 100%)',
     color: palette.text,
   };
 
@@ -257,7 +279,7 @@ const VerificationPage = () => {
     backgroundColor: palette.card,
     border: `1px solid ${palette.border}`,
     borderRadius: '18px',
-    boxShadow: '0 18px 45px rgba(15, 23, 42, 0.05)',
+    boxShadow: isCustomerTheme ? '0 18px 45px rgba(0, 0, 0, 0.35)' : '0 18px 45px rgba(15, 23, 42, 0.05)',
   };
 
   const badgeStyle = (meta) => ({
@@ -433,7 +455,9 @@ const VerificationPage = () => {
           style={{
             ...cardStyle,
             padding: '1.5rem',
-            background: 'linear-gradient(135deg, #FFFFFF 0%, #FFF9EB 100%)',
+            background: isCustomerTheme
+              ? 'linear-gradient(135deg, #0F0F0F 0%, #141414 100%)'
+              : 'linear-gradient(135deg, #FFFFFF 0%, #FFF9EB 100%)',
           }}
         >
           <div style={{ marginBottom: '0.9rem' }}>
@@ -523,7 +547,7 @@ const VerificationPage = () => {
                         width: '100%',
                         borderRadius: 10,
                         border: `1px solid ${palette.border}`,
-                        background: '#FFFFFF',
+                        background: palette.card,
                         color: palette.text,
                         padding: '0.7rem 0.8rem',
                       }}
@@ -574,7 +598,7 @@ const VerificationPage = () => {
                           width: '100%',
                           borderRadius: 10,
                           border: `1px solid ${palette.border}`,
-                          background: '#FFFFFF',
+                          background: palette.card,
                           color: palette.text,
                           padding: '0.7rem 0.8rem',
                         }}
@@ -607,7 +631,7 @@ const VerificationPage = () => {
                           width: '100%',
                           borderRadius: 10,
                           border: `1px solid ${palette.border}`,
-                          background: '#FFFFFF',
+                          background: palette.card,
                           color: palette.text,
                           padding: '0.7rem 0.8rem',
                         }}

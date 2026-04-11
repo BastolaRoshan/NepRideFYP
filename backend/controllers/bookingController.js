@@ -1,5 +1,6 @@
 import bookingModel from "../models/bookingModel.js";
 import vehicleModel from "../models/vehicleModel.js";
+import userModel from "../models/userModel.js";
 
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
 const PAYMENT_WINDOW_MS = 10 * 60 * 1000;
@@ -180,6 +181,24 @@ const calculateTotalDays = (startDate, endDate) => {
     return Math.ceil(diffMs / DAY_IN_MS);
 };
 
+const hasBookingEnded = (booking, referenceDate = new Date()) => {
+    const endMs = new Date(booking?.endDate).getTime();
+    if (!Number.isFinite(endMs)) return false;
+    return endMs <= referenceDate.getTime();
+};
+
+const autoCompleteEndedBooking = async (bookingDoc, referenceDate = new Date()) => {
+    if (!bookingDoc) return bookingDoc;
+
+    const normalizedStatus = normalizeStatus(bookingDoc.status);
+    if (normalizedStatus === 'confirmed' && hasBookingEnded(bookingDoc, referenceDate)) {
+        bookingDoc.status = 'completed';
+        await bookingDoc.save();
+    }
+
+    return bookingDoc;
+};
+
 const mapBookingWithComputedFields = (bookingDoc) => {
     const booking = bookingDoc?.toObject ? bookingDoc.toObject() : bookingDoc;
     const computedDays = calculateTotalDays(booking.startDate, booking.endDate);
@@ -188,6 +207,57 @@ const mapBookingWithComputedFields = (bookingDoc) => {
         ...booking,
         totalDays: Number(booking.totalDays) > 0 ? booking.totalDays : computedDays,
     };
+};
+
+const normalizeRatingScore = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return null;
+
+    const rounded = Math.round(parsed);
+    if (rounded < 1 || rounded > 5) return null;
+
+    return rounded;
+};
+
+const recalculateVehicleRatingFields = (vehicle) => {
+    const ratings = Array.isArray(vehicle?.ratings) ? vehicle.ratings : [];
+    const validScores = ratings
+        .map((rating) => Number(rating?.score))
+        .filter((score) => Number.isFinite(score) && score >= 1 && score <= 5);
+
+    const ratingCount = validScores.length;
+    const ratingSum = validScores.reduce((sum, score) => sum + score, 0);
+    const ratingAverage = ratingCount > 0 ? Number((ratingSum / ratingCount).toFixed(2)) : 0;
+
+    vehicle.ratingCount = ratingCount;
+    vehicle.ratingSum = ratingSum;
+    vehicle.ratingAverage = ratingAverage;
+};
+
+const syncVendorOverallRating = async (vendorId) => {
+    if (!vendorId) return;
+
+    const aggregate = await vehicleModel.aggregate([
+        { $match: { vendor: vendorId } },
+        {
+            $group: {
+                _id: '$vendor',
+                totalRatingCount: { $sum: '$ratingCount' },
+                totalRatingSum: { $sum: '$ratingSum' },
+            },
+        },
+    ]);
+
+    const totalRatingCount = Number(aggregate[0]?.totalRatingCount || 0);
+    const totalRatingSum = Number(aggregate[0]?.totalRatingSum || 0);
+    const vendorRatingAverage = totalRatingCount > 0
+        ? Number((totalRatingSum / totalRatingCount).toFixed(2))
+        : 0;
+
+    await userModel.findByIdAndUpdate(vendorId, {
+        vendorRatingAverage,
+        vendorRatingCount: totalRatingCount,
+    });
 };
 
 export const createBooking = async (req, res) => {
@@ -277,6 +347,9 @@ export const getCustomerBookings = async (req, res) => {
         const bookings = await bookingModel
             .find({ customer: req.user._id })
             .populate("vehicle");
+
+        await Promise.all(bookings.map((booking) => autoCompleteEndedBooking(booking)));
+
         res.json({
             success: true,
             count: bookings.length,
@@ -298,6 +371,8 @@ export const getVendorBookings = async (req, res) => {
             .find({ vehicle: { $in: vehicleIds } })
             .populate("vehicle")
             .populate("customer", "name email phone");
+
+        await Promise.all(bookings.map((booking) => autoCompleteEndedBooking(booking)));
 
         res.json({
             success: true,
@@ -384,6 +459,8 @@ export const getBookingById = async (req, res) => {
         if (!access) {
             return res.json({ success: false, message: 'Not authorized to view this booking' });
         }
+
+        await autoCompleteEndedBooking(booking);
 
         return res.json({ success: true, booking: mapBookingWithComputedFields(booking) });
     } catch (error) {
@@ -656,6 +733,11 @@ export const cancelBooking = async (req, res) => {
             return res.json({ success: true, message: 'Booking already cancelled', booking: mapBookingWithComputedFields(booking) });
         }
 
+        if (hasBookingEnded(booking)) {
+            await autoCompleteEndedBooking(booking);
+            return res.json({ success: false, message: 'Completed bookings cannot be cancelled', booking: mapBookingWithComputedFields(booking) });
+        }
+
         booking.status = 'cancelled';
         booking.cancelledAt = new Date();
         booking.cancellationReason = String(reason || 'Cancelled by user');
@@ -664,6 +746,83 @@ export const cancelBooking = async (req, res) => {
         await booking.save();
 
         return res.json({ success: true, message: 'Booking cancelled successfully', booking: mapBookingWithComputedFields(booking) });
+    } catch (error) {
+        return res.json({ success: false, message: error.message });
+    }
+};
+
+export const addBookingRating = async (req, res) => {
+    try {
+        const booking = await bookingModel.findById(req.params.id);
+
+        if (!booking) {
+            return res.json({ success: false, message: 'Booking not found' });
+        }
+
+        if (String(booking.customer) !== String(req.user._id)) {
+            return res.json({ success: false, message: 'Only the booking customer can submit a rating' });
+        }
+
+        if (normalizeStatus(booking.status) !== 'completed') {
+            return res.json({ success: false, message: 'You can only rate a completed booking' });
+        }
+
+        if (booking.customerRating?.score) {
+            return res.json({ success: false, message: 'Rating already submitted for this booking' });
+        }
+
+        const score = normalizeRatingScore(req.body?.score ?? req.body?.rating);
+        const comment = String(req.body?.comment || '').trim();
+
+        if (!score) {
+            return res.json({ success: false, message: 'Rating must be a number between 1 and 5' });
+        }
+
+        const vehicle = await vehicleModel.findById(booking.vehicle);
+        if (!vehicle) {
+            return res.json({ success: false, message: 'Vehicle not found for this booking' });
+        }
+
+        const alreadyRatedInVehicle = Array.isArray(vehicle.ratings)
+            && vehicle.ratings.some((item) => String(item?.booking) === String(booking._id));
+
+        if (alreadyRatedInVehicle) {
+            return res.json({ success: false, message: 'Rating already recorded for this booking' });
+        }
+
+        const ratedAt = new Date();
+
+        vehicle.ratings.push({
+            customer: req.user._id,
+            booking: booking._id,
+            score,
+            comment,
+            ratedAt,
+        });
+        recalculateVehicleRatingFields(vehicle);
+
+        booking.customerRating = {
+            score,
+            comment,
+            ratedAt,
+        };
+
+        await Promise.all([
+            vehicle.save(),
+            booking.save(),
+        ]);
+
+        await syncVendorOverallRating(vehicle.vendor);
+
+        return res.json({
+            success: true,
+            message: 'Rating submitted successfully',
+            booking: mapBookingWithComputedFields(booking),
+            vehicleRating: {
+                ratingAverage: vehicle.ratingAverage,
+                ratingCount: vehicle.ratingCount,
+            },
+        });
     } catch (error) {
         return res.json({ success: false, message: error.message });
     }

@@ -6,6 +6,34 @@ const generateRegistrationNumber = () => {
     return `NR-${timestampSegment}-${randomSegment}`;
 };
 
+const vehicleRatingSchema = new mongoose.Schema({
+    customer: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'user',
+        required: true,
+    },
+    booking: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'booking',
+        required: true,
+    },
+    score: {
+        type: Number,
+        required: true,
+        min: 1,
+        max: 5,
+    },
+    comment: {
+        type: String,
+        trim: true,
+        default: '',
+    },
+    ratedAt: {
+        type: Date,
+        default: Date.now,
+    },
+}, { _id: false });
+
 const vehicleSchema = new mongoose.Schema({
     title: {
         type: String,
@@ -76,6 +104,26 @@ const vehicleSchema = new mongoose.Schema({
         type: String,
         trim: true,
         default: '',
+    },
+    ratingAverage: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 5,
+    },
+    ratingCount: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    ratingSum: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    ratings: {
+        type: [vehicleRatingSchema],
+        default: [],
     },
     vendor: {
         type: mongoose.Schema.Types.ObjectId,

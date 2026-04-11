@@ -9,6 +9,7 @@ import {
     cancelBooking,
     initiateKhaltiPayment,
     verifyKhaltiPayment,
+    addBookingRating,
 } from "../controllers/bookingController.js";
 import { protect, authorizeRoles, requireApprovedVerification } from "../middleware/roleAuth.js";
 
@@ -27,6 +28,7 @@ router.post("/:id/confirm", requireApprovedVerification, authorizeRoles("Custome
 router.post("/:id/khalti/initiate", requireApprovedVerification, authorizeRoles("Customer", "Admin"), initiateKhaltiPayment);
 router.post("/:id/khalti/verify", requireApprovedVerification, authorizeRoles("Customer", "Admin"), verifyKhaltiPayment);
 router.patch("/:id/cancel", requireApprovedVerification, authorizeRoles("Customer", "Vendor", "Admin"), cancelBooking);
+router.post("/:id/rating", authorizeRoles("Customer"), addBookingRating);
 
 router.put("/:id/status", requireApprovedVerification, authorizeRoles("Vendor", "Admin"), updateBookingStatus);
 

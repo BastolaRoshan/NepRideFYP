@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Users, Car, CreditCard, Trash2, Save, MessageSquare } from 'lucide-react';
+import { LogOut, Users, Car, CreditCard, Trash2, Save, MessageSquare, Eye, X } from 'lucide-react';
 import UsersList from './UsersList';
 import DocumentPreviewModal from './DocumentPreviewModal';
 import { apiFetch } from '../utils/apiFetch';
@@ -34,12 +34,36 @@ const resolveDocumentUrl = (url) => {
   const normalized = String(url || '').trim();
   if (!normalized) return '#';
 
-  if (/^https?:\/\//i.test(normalized)) {
+  if (/^(https?:\/\/|data:|blob:)/i.test(normalized)) {
     return normalized;
   }
 
   const withLeadingSlash = normalized.startsWith('/') ? normalized : `/${normalized}`;
   return withLeadingSlash;
+};
+
+const isImageSource = (url) => {
+  const normalized = String(url || '').trim();
+  if (!normalized) return false;
+
+  if (/^data:image\//i.test(normalized)) {
+    return true;
+  }
+
+  const base = normalized.split('?')[0];
+  return /\.(jpg|jpeg|png|gif|webp|bmp|jfif)$/i.test(base);
+};
+
+const isPdfSource = (url) => {
+  const normalized = String(url || '').trim();
+  if (!normalized) return false;
+
+  if (/^data:application\/pdf/i.test(normalized)) {
+    return true;
+  }
+
+  const base = normalized.split('?')[0];
+  return /\.pdf$/i.test(base);
 };
 
 const fetch = apiFetch;
@@ -74,6 +98,8 @@ const AdminDashboard = () => {
   const [refreshSeed, setRefreshSeed] = useState(0);
 
   const [selectedUserForDocs, setSelectedUserForDocs] = useState(null);
+  const [selectedVehicleForView, setSelectedVehicleForView] = useState(null);
+  const [bluebookPreviewFailed, setBluebookPreviewFailed] = useState(false);
   const [savingVerification, setSavingVerification] = useState(false);
 
   const [newDocumentForm, setNewDocumentForm] = useState({
@@ -90,6 +116,10 @@ const AdminDashboard = () => {
       label: `${user.name} (${user.email})`,
     }));
   }, [users]);
+
+  useEffect(() => {
+    setBluebookPreviewFailed(false);
+  }, [selectedVehicleForView?.bluebookUrl]);
 
   const handleLogout = async () => {
     try {
@@ -759,6 +789,12 @@ const AdminDashboard = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <strong style={{ color: '#d4af37' }}>Rs. {Number(vehicle.pricePerDay || 0).toLocaleString()} / day</strong>
                     <button
+                      style={{ ...actionButtonStyle, border: '1px solid #d4af37', color: '#a87a12', backgroundColor: '#fff8e1' }}
+                      onClick={() => setSelectedVehicleForView(vehicle)}
+                    >
+                      <Eye size={13} /> View
+                    </button>
+                    <button
                       style={{ ...actionButtonStyle, border: '1px solid #ef4444', color: '#ef4444' }}
                       onClick={() => deleteVehicle(vehicle._id)}
                     >
@@ -1028,6 +1064,147 @@ const AdminDashboard = () => {
             loading={savingVerification}
             actionMessage={actionMessage}
           />
+        )}
+
+        {selectedVehicleForView && (
+          <div
+            onClick={(event) => {
+              if (event.target === event.currentTarget) {
+                setSelectedVehicleForView(null);
+              }
+            }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(17, 24, 39, 0.58)',
+              display: 'grid',
+              placeItems: 'center',
+              zIndex: 1200,
+              padding: '1rem',
+            }}
+          >
+            <div
+              style={{
+                width: 'min(920px, 100%)',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                backgroundColor: '#ffffff',
+                border: '1px solid #e5e7eb',
+                borderRadius: '14px',
+                boxShadow: '0 22px 50px rgba(0, 0, 0, 0.2)',
+                padding: '1rem',
+                display: 'grid',
+                gap: '1rem',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.3rem', color: palette.text }}>{selectedVehicleForView.title || selectedVehicleForView.name || 'Vehicle Details'}</h2>
+                  <p style={{ margin: '0.2rem 0 0', color: palette.textSecondary, fontSize: '0.88rem' }}>
+                    Complete vehicle information
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setSelectedVehicleForView(null)}
+                  style={{
+                    border: '1px solid #e5e7eb',
+                    backgroundColor: '#ffffff',
+                    borderRadius: '8px',
+                    padding: '0.4rem',
+                    cursor: 'pointer',
+                    color: palette.textSecondary,
+                  }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {selectedVehicleForView.image ? (
+                <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', overflow: 'hidden', backgroundColor: '#f8fafc' }}>
+                  <img
+                    src={selectedVehicleForView.image}
+                    alt={selectedVehicleForView.title || selectedVehicleForView.name || 'Vehicle'}
+                    style={{ width: '100%', maxHeight: '320px', objectFit: 'cover' }}
+                  />
+                </div>
+              ) : null}
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.75rem' }}>
+                <div style={{ ...cardStyle, padding: '0.85rem' }}>
+                  <strong style={{ color: palette.text }}>Vehicle Type</strong>
+                  <p style={{ margin: '0.35rem 0 0', color: palette.textSecondary }}>{selectedVehicleForView.vehicleType || selectedVehicleForView.type || '--'}</p>
+                </div>
+                <div style={{ ...cardStyle, padding: '0.85rem' }}>
+                  <strong style={{ color: palette.text }}>Model</strong>
+                  <p style={{ margin: '0.35rem 0 0', color: palette.textSecondary }}>{selectedVehicleForView.model || '--'}</p>
+                </div>
+                <div style={{ ...cardStyle, padding: '0.85rem' }}>
+                  <strong style={{ color: palette.text }}>Fuel Type</strong>
+                  <p style={{ margin: '0.35rem 0 0', color: palette.textSecondary }}>{selectedVehicleForView.fuelType || selectedVehicleForView.fuel || '--'}</p>
+                </div>
+                <div style={{ ...cardStyle, padding: '0.85rem' }}>
+                  <strong style={{ color: palette.text }}>Seat Capacity</strong>
+                  <p style={{ margin: '0.35rem 0 0', color: palette.textSecondary }}>{selectedVehicleForView.seatCapacity ?? selectedVehicleForView.seats ?? '--'}</p>
+                </div>
+                <div style={{ ...cardStyle, padding: '0.85rem' }}>
+                  <strong style={{ color: palette.text }}>Top Speed</strong>
+                  <p style={{ margin: '0.35rem 0 0', color: palette.textSecondary }}>
+                    {selectedVehicleForView.speed ? `${selectedVehicleForView.speed} kmph` : '--'}
+                  </p>
+                </div>
+                <div style={{ ...cardStyle, padding: '0.85rem' }}>
+                  <strong style={{ color: palette.text }}>Price per Day</strong>
+                  <p style={{ margin: '0.35rem 0 0', color: '#d4af37', fontWeight: 700 }}>Rs. {Number(selectedVehicleForView.pricePerDay || 0).toLocaleString()}</p>
+                </div>
+                <div style={{ ...cardStyle, padding: '0.85rem' }}>
+                  <strong style={{ color: palette.text }}>Bluebook</strong>
+                  {selectedVehicleForView.bluebookUrl ? (
+                    <div style={{ marginTop: '0.55rem', border: '1px solid #e5e7eb', borderRadius: '10px', overflow: 'hidden', backgroundColor: '#f8fafc' }}>
+                      {isImageSource(selectedVehicleForView.bluebookUrl) && !bluebookPreviewFailed ? (
+                        <img
+                          src={resolveDocumentUrl(selectedVehicleForView.bluebookUrl)}
+                          alt="Bluebook"
+                          onError={() => setBluebookPreviewFailed(true)}
+                          style={{ width: '100%', maxHeight: '220px', objectFit: 'contain', display: 'block' }}
+                        />
+                      ) : isPdfSource(selectedVehicleForView.bluebookUrl) ? (
+                        <iframe
+                          src={resolveDocumentUrl(selectedVehicleForView.bluebookUrl)}
+                          title="Bluebook PDF Preview"
+                          style={{ width: '100%', height: '260px', border: 'none', display: 'block' }}
+                        />
+                      ) : (
+                        <object
+                          data={resolveDocumentUrl(selectedVehicleForView.bluebookUrl)}
+                          style={{ width: '100%', height: '260px', display: 'block' }}
+                        >
+                          <p style={{ margin: '0.75rem', color: palette.textSecondary, fontSize: '0.84rem' }}>
+                            Bluebook preview is not supported for this file format in this browser.
+                          </p>
+                        </object>
+                      )}
+                    </div>
+                  ) : (
+                    <p style={{ margin: '0.35rem 0 0', color: palette.textSecondary }}>--</p>
+                  )}
+                </div>
+                <div style={{ ...cardStyle, padding: '0.85rem' }}>
+                  <strong style={{ color: palette.text }}>Vendor</strong>
+                  <p style={{ margin: '0.35rem 0 0', color: palette.textSecondary }}>
+                    {selectedVehicleForView.vendor?.name || selectedVehicleForView.vendorName || '--'}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ ...cardStyle, padding: '0.95rem' }}>
+                <strong style={{ color: palette.text }}>Overview</strong>
+                <p style={{ margin: '0.45rem 0 0', color: palette.textSecondary, lineHeight: 1.5 }}>
+                  {selectedVehicleForView.overview || '--'}
+                </p>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -17,7 +17,7 @@ const initialFormState = {
   bluebookUrl: '',
 };
 
-const vehicleTypeOptions = ['Car', 'Bike', 'EV'];
+const vehicleTypeOptions = ['Car', 'Bike', 'Scooter', 'EV'];
 const fuelTypeOptions = ['Petrol', 'Diesel', 'Electric'];
 
 const palette = {
@@ -73,10 +73,10 @@ const VehicleListingForm = () => {
       pricePerDay: editVehicle.pricePerDay ?? '',
       fuelType: editVehicle.fuelType || editVehicle.fuel || '',
       image: editVehicle.image || '',
-      bluebookUrl: '',
+      bluebookUrl: editVehicle.bluebookUrl || '',
     });
     setImagePreview(editVehicle.image || '');
-    setBluebookPreview('');
+    setBluebookPreview(editVehicle.bluebookUrl || '');
     setErrors({});
     setSubmitState({ loading: false, message: '', isError: false });
   }, [editVehicle, isEditMode]);
@@ -166,6 +166,19 @@ const VehicleListingForm = () => {
   const handleBluebookChange = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    const fileType = String(file.type || '').toLowerCase();
+    const fileName = String(file.name || '').toLowerCase();
+    const isImage = fileType.startsWith('image/');
+    const isUnsupportedImage = /image\/(heic|heif)/i.test(fileType) || fileName.endsWith('.heic') || fileName.endsWith('.heif');
+
+    if (!isImage || isUnsupportedImage) {
+      setErrors((prev) => ({
+        ...prev,
+        bluebookUrl: 'Please upload JPG, PNG, WEBP, GIF, or BMP image file.',
+      }));
+      return;
+    }
 
     if (file.size > 10 * 1024 * 1024) {
       setErrors((prev) => ({ ...prev, bluebookUrl: 'File size should be 10MB or less.' }));
@@ -635,12 +648,17 @@ const VehicleListingForm = () => {
               >
                 <UploadCloud size={18} /> Choose Bluebook Image
               </label>
-              <input id="bluebookUpload" type="file" accept="image/*,.pdf" onChange={handleBluebookChange} style={{ display: 'none' }} />
+              <input id="bluebookUpload" type="file" accept="image/*" onChange={handleBluebookChange} style={{ display: 'none' }} />
               {errors.bluebookUrl && <p style={errorTextStyle}>{errors.bluebookUrl}</p>}
-              <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: palette.textSecondary }}>Upload your vehicle bluebook </p>
+              <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: palette.textSecondary }}>Upload your vehicle bluebook image (JPG, PNG, WEBP, GIF, BMP)</p>
               {bluebookPreview && (
-                <div style={{ marginTop: '0.75rem', padding: '0.5rem 0.75rem', borderRadius: '6px', backgroundColor: '#E7F5E8', color: '#1B4D2B', fontSize: '0.85rem' }}>
-                  ✓ {bluebookPreview}
+                <div style={{ marginTop: '0.75rem', borderRadius: '8px', border: `1px solid ${palette.border}`, overflow: 'hidden' }}>
+                  <img
+                    src={formData.bluebookUrl}
+                    alt="Bluebook Preview"
+                    style={{ width: '100%', height: '11rem', objectFit: 'cover', display: 'block' }}
+                    onError={() => setErrors((prev) => ({ ...prev, bluebookUrl: 'Unable to preview this bluebook image.' }))}
+                  />
                 </div>
               )}
             </div>

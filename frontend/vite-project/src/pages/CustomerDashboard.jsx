@@ -39,6 +39,9 @@ const CustomerDashboard = () => {
     const [bookingModal, setBookingModal] = useState(null);
     const [currentTime, setCurrentTime] = useState(Date.now());
     const [bookingActionLoadingId, setBookingActionLoadingId] = useState('');
+    const [ratingDrafts, setRatingDrafts] = useState({});
+    const [ratingSubmittingId, setRatingSubmittingId] = useState('');
+    const [ratingErrors, setRatingErrors] = useState({});
     const [verificationStatus, setVerificationStatus] = useState(getStoredVerificationStatus());
     const [serviceAccessAllowed, setServiceAccessAllowed] = useState(getStoredServiceAccessAllowed());
     const [serviceNotice, setServiceNotice] = useState('');
@@ -339,6 +342,74 @@ const CustomerDashboard = () => {
             setBookingsError(error.message || 'Unable to cancel booking right now.');
         } finally {
             setBookingActionLoadingId('');
+        }
+    };
+
+    const handleRatingDraftChange = (bookingId, value) => {
+        setRatingDrafts((prev) => ({
+            ...prev,
+            [bookingId]: value,
+        }));
+
+        setRatingErrors((prev) => {
+            const next = { ...prev };
+            delete next[bookingId];
+            return next;
+        });
+    };
+
+    const handleSubmitRating = async (bookingId) => {
+        const score = Number(ratingDrafts[bookingId]);
+
+        if (!Number.isFinite(score) || score < 1 || score > 5) {
+            setRatingErrors((prev) => ({
+                ...prev,
+                [bookingId]: 'Please select a rating between 1 and 5.',
+            }));
+            return;
+        }
+
+        try {
+            setRatingSubmittingId(bookingId);
+            setRatingErrors((prev) => {
+                const next = { ...prev };
+                delete next[bookingId];
+                return next;
+            });
+
+            const response = await apiFetch(`/api/bookings/${bookingId}/rating`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ score }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || 'Unable to submit rating right now.');
+            }
+
+            setRatingDrafts((prev) => {
+                const next = { ...prev };
+                delete next[bookingId];
+                return next;
+            });
+
+            setRatingErrors((prev) => {
+                const next = { ...prev };
+                delete next[bookingId];
+                return next;
+            });
+
+            fetchCustomerBookings();
+            fetchVehicles();
+        } catch (error) {
+            setRatingErrors((prev) => ({
+                ...prev,
+                [bookingId]: error.message || 'Unable to submit rating right now.',
+            }));
+        } finally {
+            setRatingSubmittingId('');
         }
     };
 
@@ -746,6 +817,65 @@ const CustomerDashboard = () => {
                                                 >
                                                     {bookingActionLoadingId === booking._id ? 'Cancelling...' : 'Cancel Booking'}
                                                 </button>
+                                            </div>
+                                        )}
+
+                                        {normalizedStatus === 'completed' && (
+                                            <div style={{ marginTop: '0.9rem', padding: '0.8rem', borderRadius: '10px', border: '1px solid #2f2f2f', backgroundColor: '#111111' }}>
+                                                {Number(booking?.customerRating?.score || 0) > 0 ? (
+                                                    <p style={{ margin: 0, color: '#DBB33B', fontWeight: 700 }}>
+                                                        Your rating: {booking.customerRating.score}/5
+                                                    </p>
+                                                ) : (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                                                        <label htmlFor={`rating-${booking._id}`} style={{ color: '#d2d2d2', fontSize: '0.88rem' }}>
+                                                            Rate this vehicle
+                                                        </label>
+                                                        <select
+                                                            id={`rating-${booking._id}`}
+                                                            value={ratingDrafts[booking._id] || ''}
+                                                            onChange={(event) => handleRatingDraftChange(booking._id, event.target.value)}
+                                                            style={{
+                                                                border: '1px solid #3a3a3a',
+                                                                borderRadius: '8px',
+                                                                backgroundColor: '#0f0f0f',
+                                                                color: '#ffffff',
+                                                                padding: '0.45rem 0.55rem',
+                                                                minWidth: '95px',
+                                                            }}
+                                                        >
+                                                            <option value="">Select</option>
+                                                            <option value="1">1</option>
+                                                            <option value="2">2</option>
+                                                            <option value="3">3</option>
+                                                            <option value="4">4</option>
+                                                            <option value="5">5</option>
+                                                        </select>
+
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleSubmitRating(booking._id)}
+                                                            disabled={ratingSubmittingId === booking._id || isServiceLocked}
+                                                            style={{
+                                                                border: 'none',
+                                                                borderRadius: '8px',
+                                                                padding: '0.5rem 0.8rem',
+                                                                backgroundColor: ratingSubmittingId === booking._id || isServiceLocked ? '#655c42' : '#DBB33B',
+                                                                color: '#111111',
+                                                                fontWeight: 700,
+                                                                cursor: ratingSubmittingId === booking._id || isServiceLocked ? 'not-allowed' : 'pointer',
+                                                            }}
+                                                        >
+                                                            {ratingSubmittingId === booking._id ? 'Submitting...' : 'Submit Rating'}
+                                                        </button>
+
+                                                        {ratingErrors[booking._id] && (
+                                                            <p style={{ margin: 0, color: '#f87171', fontSize: '0.85rem', width: '100%' }}>
+                                                                {ratingErrors[booking._id]}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 

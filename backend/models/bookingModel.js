@@ -2,6 +2,23 @@ import mongoose from 'mongoose';
 
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
 
+const customerRatingSchema = new mongoose.Schema({
+    score: {
+        type: Number,
+        min: 1,
+        max: 5,
+    },
+    comment: {
+        type: String,
+        trim: true,
+        default: '',
+    },
+    ratedAt: {
+        type: Date,
+        default: null,
+    },
+}, { _id: false });
+
 const bookingSchema = new mongoose.Schema({
     customer: {
         type: mongoose.Schema.Types.ObjectId,
@@ -74,6 +91,10 @@ const bookingSchema = new mongoose.Schema({
         type: String,
         trim: true,
         default: '',
+    },
+    customerRating: {
+        type: customerRatingSchema,
+        default: null,
     },
 }, { timestamps: true });
 

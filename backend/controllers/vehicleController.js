@@ -1,4 +1,5 @@
 import vehicleModel from "../models/vehicleModel.js";
+import userModel from "../models/userModel.js";
 import { getVerificationAccessPayload, normalizeRole } from "../utils/verification.js";
 
 const toFiniteNumber = (value) => {
@@ -28,6 +29,32 @@ const getMongoErrorMessage = (error) => {
     return error?.message || "Something went wrong";
 };
 
+const syncVendorOverallRating = async (vendorId) => {
+    if (!vendorId) return;
+
+    const aggregate = await vehicleModel.aggregate([
+        { $match: { vendor: vendorId } },
+        {
+            $group: {
+                _id: '$vendor',
+                totalRatingCount: { $sum: '$ratingCount' },
+                totalRatingSum: { $sum: '$ratingSum' },
+            },
+        },
+    ]);
+
+    const totalRatingCount = Number(aggregate[0]?.totalRatingCount || 0);
+    const totalRatingSum = Number(aggregate[0]?.totalRatingSum || 0);
+    const vendorRatingAverage = totalRatingCount > 0
+        ? Number((totalRatingSum / totalRatingCount).toFixed(2))
+        : 0;
+
+    await userModel.findByIdAndUpdate(vendorId, {
+        vendorRatingAverage,
+        vendorRatingCount: totalRatingCount,
+    });
+};
+
 const mapVehicleResponse = (vehicleDoc) => {
     const vehicle = vehicleDoc?.toObject ? vehicleDoc.toObject() : vehicleDoc;
 
@@ -38,6 +65,10 @@ const mapVehicleResponse = (vehicleDoc) => {
         seats: vehicle.seats ?? vehicle.seatCapacity,
         fuel: vehicle.fuel || vehicle.fuelType,
         vendorName: vehicle.vendor?.name || vehicle.vendorName || "",
+        ratingAverage: Number(vehicle.ratingAverage || 0),
+        ratingCount: Number(vehicle.ratingCount || 0),
+        vendorRatingAverage: Number(vehicle.vendor?.vendorRatingAverage || 0),
+        vendorRatingCount: Number(vehicle.vendor?.vendorRatingCount || 0),
     };
 };
 
@@ -58,6 +89,7 @@ export const addVehicle = async (req, res) => {
             seats,
             speed,
             fuel,
+            bluebookUrl,
         } = req.body;
 
         const normalizedTitle = (title || name || "").trim();
@@ -67,6 +99,7 @@ export const addVehicle = async (req, res) => {
         const normalizedFuelType = (fuelType || fuel || "").trim();
         const normalizedImage = typeof image === "string" ? image.trim() : "";
         const normalizedRegistrationNumber = normalizeRegistrationNumber(registrationNumber);
+        const normalizedBluebookUrl = typeof bluebookUrl === "string" ? bluebookUrl.trim() : "";
 
         const normalizedSeatCapacity = toFiniteNumber(seatCapacity ?? seats);
         const normalizedPricePerDay = toFiniteNumber(pricePerDay);
@@ -103,6 +136,7 @@ export const addVehicle = async (req, res) => {
             fuel: normalizedFuelType,
             speed: normalizedSpeed,
             registrationNumber: normalizedRegistrationNumber || undefined,
+            bluebookUrl: normalizedBluebookUrl,
             vendor: req.user._id,
         });
 
@@ -223,7 +257,9 @@ export const deleteVehicle = async (req, res) => {
             return res.json({ success: false, message: "Not authorized to delete this vehicle" });
         }
 
+        const vendorId = vehicle.vendor;
         await vehicle.deleteOne();
+        await syncVendorOverallRating(vendorId);
         res.json({ success: true, message: "Vehicle deleted" });
     } catch (error) {
         res.json({ success: false, message: error.message });
@@ -237,7 +273,7 @@ export const getAllVehicles = async (req, res) => {
         const query = vehicleModel
             .find()
             .sort({ createdAt: -1 })
-            .populate("vendor", "name email role accountStatus verificationStatus verificationReviewedAt documents isVerified");
+            .populate("vendor", "name email role accountStatus verificationStatus verificationReviewedAt documents isVerified vendorRatingAverage vendorRatingCount");
 
         const vehicles = await query;
         const visibleVehicles = vehicles.filter((vehicle) => {
