@@ -5,6 +5,7 @@ import {
   deleteAdminVehicle,
   getAdminDocuments,
   getAdminFeedbackMessages,
+  getAdminReports,
   getAdminPayments,
   getAdminSummary,
   getAdminUsers,
@@ -23,6 +24,7 @@ router.use(protect);
 router.use(authorizeRoles("Admin"));
 
 router.get("/summary", getAdminSummary);
+router.get("/reports", getAdminReports);
 router.get("/feedback", getAdminFeedbackMessages);
 
 router.get("/users", getAdminUsers);

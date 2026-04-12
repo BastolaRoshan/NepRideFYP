@@ -190,8 +190,7 @@ const CustomerDashboard = () => {
     const isServiceLocked = !serviceAccessAllowed;
 
     const handleGoToVerification = () => {
-        setActiveView('profile');
-        navigate('/customer-dashboard/profile', { state: { activeView: 'profile' } });
+        navigate('/verification');
     };
 
     const handleLockedAction = () => {
@@ -472,8 +471,8 @@ const CustomerDashboard = () => {
                                             <div
                                                 key={index}
                                                 style={{
-                                                    backgroundColor: '#000',
-                                                    border: '1px solid #333',
+                                                    backgroundColor: '#1e1e1e',
+                                                    border: '1px solid #4a4a4a',
                                                     borderRadius: '12px',
                                                     padding: '1.5rem',
                                                     textAlign: 'center',
@@ -490,7 +489,7 @@ const CustomerDashboard = () => {
                                                     e.currentTarget.style.boxShadow = `0 0 20px ${stat.color}33`;
                                                 }}
                                                 onMouseLeave={(e) => {
-                                                    e.currentTarget.style.borderColor = '#333';
+                                                    e.currentTarget.style.borderColor = '#4a4a4a';
                                                     e.currentTarget.style.transform = 'translateY(0)';
                                                     e.currentTarget.style.boxShadow = 'none';
                                                 }}

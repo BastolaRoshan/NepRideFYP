@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Users, Car, CreditCard, Trash2, Save, MessageSquare, Eye, X } from 'lucide-react';
+import { LogOut, Users, Car, CreditCard, Trash2, Save, MessageSquare, Eye, X, BarChart3 } from 'lucide-react';
 import UsersList from './UsersList';
 import DocumentPreviewModal from './DocumentPreviewModal';
 import { apiFetch } from '../utils/apiFetch';
@@ -11,6 +11,7 @@ const tabs = [
   { key: 'vehicles', label: 'Vehicle Listings', icon: Car },
   { key: 'payments', label: 'Payments', icon: CreditCard },
   { key: 'feedback', label: 'Feedback', icon: MessageSquare },
+  { key: 'reports', label: 'Reports', icon: BarChart3 },
 ];
 
 const userRoleOptions = ['Customer', 'Vendor', 'Admin'];
@@ -85,6 +86,46 @@ const AdminDashboard = () => {
   const [payments, setPayments] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [feedbackMessages, setFeedbackMessages] = useState([]);
+  const [reports, setReports] = useState({
+    generatedAt: null,
+    reportRange: {
+      mode: 'default',
+      startDate: null,
+      endDate: null,
+    },
+    bookingStatus: {
+      pendingPayment: 0,
+      confirmed: 0,
+      cancelled: 0,
+      completed: 0,
+      pending: 0,
+    },
+    paymentStatus: {
+      paid: 0,
+      unpaid: 0,
+      refunded: 0,
+    },
+    usersByRole: {
+      Customer: 0,
+      Vendor: 0,
+      Admin: 0,
+    },
+    usersByAccountStatus: {
+      active: 0,
+      suspended: 0,
+      blocked: 0,
+    },
+    paidRevenueByMonth: [],
+    latestPaidPayments: [],
+  });
+  const [reportsFilters, setReportsFilters] = useState({
+    startDate: '',
+    endDate: '',
+  });
+  const [appliedReportsFilters, setAppliedReportsFilters] = useState({
+    startDate: '',
+    endDate: '',
+  });
 
   const [userDrafts, setUserDrafts] = useState({});
   const [paymentDrafts, setPaymentDrafts] = useState({});
@@ -269,6 +310,73 @@ const AdminDashboard = () => {
     setFeedbackMessages(Array.isArray(data.feedback) ? data.feedback : []);
   }, []);
 
+  const fetchReports = useCallback(async () => {
+    const params = new URLSearchParams();
+    if (appliedReportsFilters.startDate) params.set('startDate', appliedReportsFilters.startDate);
+    if (appliedReportsFilters.endDate) params.set('endDate', appliedReportsFilters.endDate);
+
+    const queryString = params.toString();
+    const response = await fetch(`/api/admin/reports${queryString ? `?${queryString}` : ''}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to load reports');
+    }
+
+    const nextReports = data.reports || {};
+    setReports((prev) => ({
+      ...prev,
+      ...nextReports,
+      bookingStatus: {
+        ...prev.bookingStatus,
+        ...(nextReports.bookingStatus || {}),
+      },
+      paymentStatus: {
+        ...prev.paymentStatus,
+        ...(nextReports.paymentStatus || {}),
+      },
+      usersByRole: {
+        ...prev.usersByRole,
+        ...(nextReports.usersByRole || {}),
+      },
+      usersByAccountStatus: {
+        ...prev.usersByAccountStatus,
+        ...(nextReports.usersByAccountStatus || {}),
+      },
+      paidRevenueByMonth: Array.isArray(nextReports.paidRevenueByMonth) ? nextReports.paidRevenueByMonth : [],
+      latestPaidPayments: Array.isArray(nextReports.latestPaidPayments) ? nextReports.latestPaidPayments : [],
+    }));
+  }, [appliedReportsFilters]);
+
+  const handleReportDateChange = (field, value) => {
+    setReportsFilters((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const applyReportFilters = () => {
+    if (reportsFilters.startDate && reportsFilters.endDate && reportsFilters.startDate > reportsFilters.endDate) {
+      setActionMessage({ message: 'Start date must be before end date.', isError: true });
+      return;
+    }
+
+    setActionMessage({ message: '', isError: false });
+    setAppliedReportsFilters(reportsFilters);
+    setRefreshSeed((prev) => prev + 1);
+  };
+
+  const clearReportFilters = () => {
+    const clearedFilters = { startDate: '', endDate: '' };
+    setReportsFilters(clearedFilters);
+    setAppliedReportsFilters(clearedFilters);
+    setActionMessage({ message: '', isError: false });
+    setRefreshSeed((prev) => prev + 1);
+  };
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -285,6 +393,8 @@ const AdminDashboard = () => {
           await fetchPayments();
         } else if (activeTab === 'feedback') {
           await fetchFeedbackMessages();
+        } else if (activeTab === 'reports') {
+          await fetchReports();
         } else if (activeTab === 'documents') {
           await fetchUsers();
           await fetchDocuments();
@@ -297,7 +407,7 @@ const AdminDashboard = () => {
     };
 
     loadData();
-  }, [activeTab, fetchDocuments, fetchFeedbackMessages, fetchPayments, fetchSummary, fetchUsers, fetchVehicles, refreshSeed]);
+  }, [activeTab, fetchDocuments, fetchFeedbackMessages, fetchPayments, fetchReports, fetchSummary, fetchUsers, fetchVehicles, refreshSeed]);
 
   const handleRefresh = () => {
     setRefreshSeed((prev) => prev + 1);
@@ -919,6 +1029,150 @@ const AdminDashboard = () => {
                 </div>
               ))
             )}
+          </div>
+        )}
+
+        {!loading && activeTab === 'reports' && (
+          <div style={{ display: 'grid', gap: '0.9rem' }}>
+            <div style={{ ...cardStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1rem' }}>Operational Reports</h3>
+              </div>
+              <button style={actionButtonStyle} onClick={handleRefresh}>Refresh Reports</button>
+            </div>
+
+            <div style={{ ...cardStyle, display: 'grid', gap: '0.7rem' }}>
+              <h3 style={{ margin: 0, fontSize: '0.96rem' }}>Filter by Selected Date Range</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.65rem', alignItems: 'end' }}>
+                <div>
+                  <label style={{ color: '#6B7280', fontSize: '0.75rem', display: 'block', marginBottom: '0.25rem' }}>
+                    From Date
+                  </label>
+                  <input
+                    type="date"
+                    style={inputStyle}
+                    value={reportsFilters.startDate}
+                    onChange={(event) => handleReportDateChange('startDate', event.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ color: '#6B7280', fontSize: '0.75rem', display: 'block', marginBottom: '0.25rem' }}>
+                    To Date
+                  </label>
+                  <input
+                    type="date"
+                    style={inputStyle}
+                    value={reportsFilters.endDate}
+                    onChange={(event) => handleReportDateChange('endDate', event.target.value)}
+                  />
+                </div>
+
+                <button style={actionButtonStyle} onClick={applyReportFilters}>Apply</button>
+                <button
+                  style={{
+                    ...actionButtonStyle,
+                    border: `1px solid ${palette.border}`,
+                    backgroundColor: palette.card,
+                    color: palette.textSecondary,
+                  }}
+                  onClick={clearReportFilters}
+                >
+                  Clear
+                </button>
+              </div>
+              <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.78rem' }}>
+                Tip: select a From Date and To Date, then click Apply.
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+              <div style={cardStyle}>
+                <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.8rem' }}>Pending Payment</p>
+                <h3 style={{ margin: '0.35rem 0 0', color: palette.accent }}>{reports.bookingStatus.pendingPayment || 0}</h3>
+              </div>
+              <div style={cardStyle}>
+                <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.8rem' }}>Confirmed Bookings</p>
+                <h3 style={{ margin: '0.35rem 0 0', color: palette.accent }}>{reports.bookingStatus.confirmed || 0}</h3>
+              </div>
+              <div style={cardStyle}>
+                <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.8rem' }}>Completed Bookings</p>
+                <h3 style={{ margin: '0.35rem 0 0', color: palette.accent }}>{reports.bookingStatus.completed || 0}</h3>
+              </div>
+              <div style={cardStyle}>
+                <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.8rem' }}>Cancelled Bookings</p>
+                <h3 style={{ margin: '0.35rem 0 0', color: palette.accent }}>{reports.bookingStatus.cancelled || 0}</h3>
+              </div>
+              <div style={cardStyle}>
+                <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.8rem' }}>Paid Payments</p>
+                <h3 style={{ margin: '0.35rem 0 0', color: palette.accent }}>{reports.paymentStatus.paid || 0}</h3>
+              </div>
+              <div style={cardStyle}>
+                <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.8rem' }}>Unpaid Payments</p>
+                <h3 style={{ margin: '0.35rem 0 0', color: palette.accent }}>{reports.paymentStatus.unpaid || 0}</h3>
+              </div>
+            </div>
+
+            <div style={{ ...cardStyle, display: 'grid', gap: '0.7rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem' }}>Paid Revenue by Month</h3>
+              {reports.paidRevenueByMonth.length === 0 ? (
+                <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.85rem' }}>No monthly revenue data available.</p>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.65rem' }}>
+                  {reports.paidRevenueByMonth.map((item) => (
+                    <div key={item.key} style={{ border: `1px solid ${palette.border}`, borderRadius: '10px', padding: '0.7rem', backgroundColor: '#f9fafb' }}>
+                      <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.78rem' }}>{item.label}</p>
+                      <p style={{ margin: '0.3rem 0 0', color: palette.text, fontWeight: 700, fontSize: '0.92rem' }}>
+                        Rs. {Number(item.totalRevenue || 0).toLocaleString()}
+                      </p>
+                      <p style={{ margin: '0.2rem 0 0', color: palette.textSecondary, fontSize: '0.78rem' }}>
+                        {Number(item.paidBookings || 0)} paid booking(s)
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.75rem' }}>
+              <div style={{ ...cardStyle, display: 'grid', gap: '0.5rem' }}>
+                <h3 style={{ margin: 0, fontSize: '1rem' }}>Users by Role</h3>
+                <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.85rem' }}>Customers: {reports.usersByRole.Customer || 0}</p>
+                <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.85rem' }}>Vendors: {reports.usersByRole.Vendor || 0}</p>
+                <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.85rem' }}>Admins: {reports.usersByRole.Admin || 0}</p>
+              </div>
+
+              <div style={{ ...cardStyle, display: 'grid', gap: '0.5rem' }}>
+                <h3 style={{ margin: 0, fontSize: '1rem' }}>Users by Account Status</h3>
+                <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.85rem' }}>Active: {reports.usersByAccountStatus.active || 0}</p>
+                <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.85rem' }}>Suspended: {reports.usersByAccountStatus.suspended || 0}</p>
+                <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.85rem' }}>Blocked: {reports.usersByAccountStatus.blocked || 0}</p>
+              </div>
+            </div>
+
+            <div style={{ ...cardStyle, display: 'grid', gap: '0.7rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem' }}>Recent Paid Payments</h3>
+              {reports.latestPaidPayments.length === 0 ? (
+                <p style={{ margin: 0, color: palette.textSecondary, fontSize: '0.85rem' }}>No paid payment records found.</p>
+              ) : (
+                reports.latestPaidPayments.map((item) => (
+                  <div key={item.bookingId} style={{ border: `1px solid ${palette.border}`, borderRadius: '10px', padding: '0.7rem', backgroundColor: '#fcfcfc' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                      <p style={{ margin: 0, color: palette.text, fontSize: '0.86rem', fontWeight: 600 }}>{item.vehicleTitle}</p>
+                      <p style={{ margin: 0, color: palette.accent, fontSize: '0.86rem', fontWeight: 700 }}>
+                        Rs. {Number(item.amount || 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <p style={{ margin: '0.25rem 0 0', color: palette.textSecondary, fontSize: '0.8rem' }}>
+                      Customer: {item.customerName} • Method: {item.paymentMethod || 'N/A'}
+                    </p>
+                    <p style={{ margin: '0.25rem 0 0', color: palette.textSecondary, fontSize: '0.78rem' }}>
+                      Paid at: {item.paidAt ? new Date(item.paidAt).toLocaleString() : '--'}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
 

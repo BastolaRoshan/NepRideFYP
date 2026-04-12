@@ -14,6 +14,8 @@
     padding: 1.5rem 2rem;
     max-width: 1200px;
     margin: 0 auto;
+    gap: 1rem;
+    flex-wrap: wrap;
 }
 
 .logo-placeholder {
@@ -23,23 +25,26 @@
     letter-spacing: -0.5px;
 }
 
-.btn-logout {
-    background-color: transparent;
-    color: #ffffff;
-    border: 1px solid #333;
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
+.btn-login-gold {
+    background: linear-gradient(180deg, #dbb33b 0%, #c79f2f 100%);
+    color: #111111;
+    border: 1px solid #e8c65f;
+    padding: 0.72rem 1.1rem;
+    border-radius: 12px;
     cursor: pointer;
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    font-size: 0.9rem;
-    transition: all 0.2s;
+    font-size: 0.95rem;
+    font-weight: 800;
+    box-shadow: 0 10px 24px rgba(219, 179, 59, 0.18);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
-.btn-logout:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    border-color: #555;
+.btn-login-gold:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px rgba(219, 179, 59, 0.24);
+    filter: brightness(1.03);
 }
 
 /* Hero Section */
@@ -64,6 +69,7 @@
 .hero-buttons {
     display: flex;
     gap: 1.5rem;
+    flex-wrap: wrap;
 }
 
 .btn-primary-accent,
@@ -98,6 +104,87 @@
 
 .btn-secondary-accent:hover {
     background-color: rgba(219, 179, 59, 0.1);
+}
+
+/* Landing Panels */
+.landing-panels {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem 3.5rem;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.landing-panels-single {
+    grid-template-columns: 1fr;
+    padding-top: 0;
+}
+
+.landing-panel-wide {
+    min-height: 0;
+}
+
+.landing-panel {
+    border: 1px solid #262626;
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(24,24,24,0.96) 0%, rgba(14,14,14,0.96) 100%);
+    padding: 1.25rem;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
+}
+
+.landing-panel-icon {
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    color: #DBB33B;
+    border: 1px solid rgba(219, 179, 59, 0.2);
+    background-color: rgba(219, 179, 59, 0.08);
+    margin-bottom: 0.9rem;
+}
+
+.landing-panel h2 {
+    margin: 0 0 0.55rem;
+    font-size: 1.18rem;
+}
+
+.landing-panel p {
+    margin: 0;
+    color: #a7a7a7;
+    line-height: 1.6;
+    font-size: 0.95rem;
+}
+
+.landing-panel-link,
+.landing-panel-call {
+    border: 1px solid #DBB33B;
+    background-color: transparent;
+    color: #DBB33B;
+    border-radius: 999px;
+    padding: 0.72rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.landing-panel-link:hover,
+.landing-panel-call:hover {
+    background-color: rgba(219, 179, 59, 0.1);
+}
+
+.landing-panel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1rem;
 }
 
 /* Fleet Section */
@@ -361,6 +448,10 @@
 
 /* Responsiveness */
 @media (max-width: 768px) {
+    .home-header {
+        justify-content: center;
+    }
+
     .hero-title {
         font-size: 3rem;
     }
@@ -373,6 +464,15 @@
     .btn-secondary-accent {
         width: 100%;
         justify-content: center;
+    }
+
+    .landing-panels {
+        grid-template-columns: 1fr;
+        padding-inline: 2rem;
+    }
+
+    .landing-panels-single {
+        padding-top: 0;
     }
 
     .fleet-header {

@@ -265,6 +265,26 @@ const VendorDashboard = () => {
     return liveBookings.filter((booking) => booking.normalizedStatus === bookingStatusFilter);
   }, [liveBookings, bookingStatusFilter]);
 
+  const ratedBookings = useMemo(() => {
+    return liveBookings
+      .filter((booking) => Number(booking?.customerRating?.score || 0) > 0)
+      .sort((left, right) => {
+        const leftTime = new Date(left?.customerRating?.ratedAt || left?.updatedAt || 0).getTime();
+        const rightTime = new Date(right?.customerRating?.ratedAt || right?.updatedAt || 0).getTime();
+        return rightTime - leftTime;
+      });
+  }, [liveBookings]);
+
+  const vendorRatingSummary = useMemo(() => {
+    if (ratedBookings.length === 0) {
+      return { count: 0, average: 0 };
+    }
+
+    const sum = ratedBookings.reduce((total, booking) => total + Number(booking?.customerRating?.score || 0), 0);
+    const average = Number((sum / ratedBookings.length).toFixed(2));
+    return { count: ratedBookings.length, average };
+  }, [ratedBookings]);
+
   const verificationLabel = normalizeVerificationStatus(verificationStatus);
 
   const handleLogout = async () => {
@@ -814,6 +834,41 @@ const VendorDashboard = () => {
                   );
                 })}
               </div>
+
+              <div style={{ marginTop: '1rem', borderTop: `1px solid ${palette.border}`, paddingTop: '1rem' }}>
+                <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Customer ratings</h3>
+                <p style={{ margin: '0.25rem 0 0.85rem', color: palette.textSecondary, fontSize: '0.85rem' }}>
+                  {vendorRatingSummary.count > 0
+                    ? `${vendorRatingSummary.average}/5 average from ${vendorRatingSummary.count} rating${vendorRatingSummary.count === 1 ? '' : 's'}`
+                    : 'No customer ratings submitted yet.'}
+                </p>
+
+                {ratedBookings.length > 0 && (
+                  <div style={{ display: 'grid', gap: '0.55rem' }}>
+                    {ratedBookings.slice(0, 3).map((booking) => (
+                      <div
+                        key={`rating-${booking._id}`}
+                        style={{
+                          border: `1px solid ${palette.border}`,
+                          borderRadius: '12px',
+                          backgroundColor: palette.surface,
+                          padding: '0.68rem 0.75rem',
+                        }}
+                      >
+                        <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>
+                          {booking.vehicle?.title || booking.vehicle?.name || 'Vehicle'}
+                        </p>
+                        <p style={{ margin: '0.28rem 0 0', color: palette.textSecondary, fontSize: '0.82rem' }}>
+                          Customer: {booking.customer?.name || 'Unknown'}
+                        </p>
+                        <p style={{ margin: '0.28rem 0 0', color: palette.accentDark, fontSize: '0.85rem', fontWeight: 700 }}>
+                          Rating: {booking.customerRating.score}/5
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             </div>
           </div>
@@ -954,6 +1009,8 @@ const VendorDashboard = () => {
                   const normalizedStatus = booking.normalizedStatus;
                   const meta = bookingStatusMeta(normalizedStatus);
                   const canUpdate = serviceAccessAllowed && updatingBookingId !== booking._id;
+                  const ratingScore = Number(booking?.customerRating?.score || 0);
+                  const hasCustomerRating = ratingScore > 0;
 
                   return (
                     <article key={booking._id} style={{ border: `1px solid ${palette.border}`, borderRadius: '18px', padding: '1rem', backgroundColor: palette.surface }}>
@@ -993,6 +1050,26 @@ const VendorDashboard = () => {
                           </div>
                         )}
                       </div>
+
+                      {hasCustomerRating && (
+                        <div
+                          style={{
+                            marginTop: '0.9rem',
+                            border: '1px solid #F2D88C',
+                            backgroundColor: '#FFF9E8',
+                            borderRadius: '12px',
+                            padding: '0.72rem 0.8rem',
+                            display: 'grid',
+                            gap: '0.25rem',
+                          }}
+                        >
+                          <strong style={{ color: palette.accentDark }}>Customer Rating: {ratingScore}/5</strong>
+                          <span style={{ color: '#805B07', fontSize: '0.82rem' }}>
+                            Rated by {booking.customer?.name || 'Customer'}
+                            {booking?.customerRating?.ratedAt ? ` on ${new Date(booking.customerRating.ratedAt).toLocaleDateString()}` : ''}
+                          </span>
+                        </div>
+                      )}
 
                       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
                         {normalizedStatus === 'pending_payment' && (

@@ -125,6 +125,250 @@ export const getAdminSummary = async (req, res) => {
   }
 };
 
+export const getAdminReports = async (req, res) => {
+  try {
+    const now = new Date();
+    const monthWindowDefault = 6;
+
+    const selectedStartDate = String(req.query?.startDate || "").trim();
+    const selectedEndDate = String(req.query?.endDate || "").trim();
+
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+
+    let rangeMode = "default";
+    let rangeStart = null;
+    let rangeEnd = null;
+
+    if (selectedStartDate || selectedEndDate) {
+      if (selectedStartDate && !datePattern.test(selectedStartDate)) {
+        return res.json({ success: false, message: "Invalid start date format. Use YYYY-MM-DD." });
+      }
+
+      if (selectedEndDate && !datePattern.test(selectedEndDate)) {
+        return res.json({ success: false, message: "Invalid end date format. Use YYYY-MM-DD." });
+      }
+
+      const effectiveStart = selectedStartDate || selectedEndDate;
+      const effectiveEnd = selectedEndDate || selectedStartDate;
+
+      rangeStart = new Date(`${effectiveStart}T00:00:00.000Z`);
+      rangeEnd = new Date(`${effectiveEnd}T23:59:59.999Z`);
+
+      if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) {
+        return res.json({ success: false, message: "Invalid date range." });
+      }
+
+      if (rangeStart.getTime() > rangeEnd.getTime()) {
+        return res.json({ success: false, message: "Start date must be before end date." });
+      }
+
+      rangeMode = "custom";
+    } else {
+      rangeStart = new Date(now.getFullYear(), now.getMonth() - (monthWindowDefault - 1), 1, 0, 0, 0, 0);
+      rangeEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    }
+
+    const bookingDateMatch = {
+      createdAt: {
+        $gte: rangeStart,
+        $lte: rangeEnd,
+      },
+    };
+
+    const monthSpan = (rangeEnd.getFullYear() - rangeStart.getFullYear()) * 12 + (rangeEnd.getMonth() - rangeStart.getMonth()) + 1;
+    const monthWindow = Math.max(1, Math.min(monthSpan, 24));
+
+    const [
+      bookingStatusRaw,
+      paymentStatusRaw,
+      userRolesRaw,
+      accountStatusRaw,
+      paidRevenueByMonthRaw,
+      recentPaidBookings,
+    ] = await Promise.all([
+      bookingModel.aggregate([
+        { $match: bookingDateMatch },
+        {
+          $project: {
+            normalizedStatus: { $toLower: "$status" },
+          },
+        },
+        {
+          $group: {
+            _id: "$normalizedStatus",
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      bookingModel.aggregate([
+        { $match: bookingDateMatch },
+        {
+          $group: {
+            _id: "$paymentStatus",
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      userModel.aggregate([
+        {
+          $group: {
+            _id: "$role",
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      userModel.aggregate([
+        {
+          $group: {
+            _id: "$accountStatus",
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      bookingModel.aggregate([
+        {
+          $match: {
+            ...bookingDateMatch,
+            paymentStatus: "Paid",
+          },
+        },
+        {
+          $group: {
+            _id: {
+              year: { $year: "$createdAt" },
+              month: { $month: "$createdAt" },
+            },
+            totalRevenue: { $sum: "$totalPrice" },
+            paidBookings: { $sum: 1 },
+          },
+        },
+        {
+          $sort: {
+            "_id.year": 1,
+            "_id.month": 1,
+          },
+        },
+      ]),
+      bookingModel
+        .find({
+          paymentStatus: "Paid",
+          ...bookingDateMatch,
+        })
+        .sort({ createdAt: -1 })
+        .limit(8)
+        .populate("customer", "name")
+        .populate("vehicle", "title name"),
+    ]);
+
+    const bookingStatus = {
+      pendingPayment: 0,
+      confirmed: 0,
+      cancelled: 0,
+      completed: 0,
+      pending: 0,
+    };
+
+    bookingStatusRaw.forEach((item) => {
+      const status = String(item?._id || "").toLowerCase();
+      const count = Number(item?.count || 0);
+
+      if (status === "pending_payment") bookingStatus.pendingPayment += count;
+      else if (status === "confirmed") bookingStatus.confirmed += count;
+      else if (status === "cancelled") bookingStatus.cancelled += count;
+      else if (status === "completed") bookingStatus.completed += count;
+      else if (status === "pending") bookingStatus.pending += count;
+    });
+
+    const paymentStatus = {
+      paid: 0,
+      unpaid: 0,
+      refunded: 0,
+    };
+
+    paymentStatusRaw.forEach((item) => {
+      const status = String(item?._id || "").toLowerCase();
+      const count = Number(item?.count || 0);
+
+      if (status === "paid") paymentStatus.paid += count;
+      else if (status === "unpaid") paymentStatus.unpaid += count;
+      else if (status === "refunded") paymentStatus.refunded += count;
+    });
+
+    const usersByRole = {
+      Customer: 0,
+      Vendor: 0,
+      Admin: 0,
+    };
+
+    userRolesRaw.forEach((item) => {
+      const role = normalizeRole(item?._id);
+      if (role && usersByRole[role] !== undefined) {
+        usersByRole[role] = Number(item?.count || 0);
+      }
+    });
+
+    const usersByAccountStatus = {
+      active: 0,
+      suspended: 0,
+      blocked: 0,
+    };
+
+    accountStatusRaw.forEach((item) => {
+      const status = String(item?._id || "").toLowerCase();
+      if (usersByAccountStatus[status] !== undefined) {
+        usersByAccountStatus[status] = Number(item?.count || 0);
+      }
+    });
+
+    const paidRevenueByMonth = [];
+    for (let i = 0; i < monthWindow; i += 1) {
+      const monthDate = new Date(rangeStart.getFullYear(), rangeStart.getMonth() + i, 1);
+      const year = monthDate.getFullYear();
+      const month = monthDate.getMonth() + 1;
+
+      const found = paidRevenueByMonthRaw.find(
+        (item) => Number(item?._id?.year) === year && Number(item?._id?.month) === month
+      );
+
+      paidRevenueByMonth.push({
+        key: `${year}-${String(month).padStart(2, "0")}`,
+        label: monthDate.toLocaleString("en-US", { month: "short" }),
+        totalRevenue: Number(found?.totalRevenue || 0),
+        paidBookings: Number(found?.paidBookings || 0),
+      });
+    }
+
+    const latestPaidPayments = recentPaidBookings.map((booking) => ({
+      bookingId: booking._id,
+      customerName: booking.customer?.name || "Unknown",
+      vehicleTitle: booking.vehicle?.title || booking.vehicle?.name || "Vehicle",
+      amount: Number(booking.totalPrice || 0),
+      paidAt: booking.createdAt,
+      paymentMethod: booking.paymentMethod || "",
+    }));
+
+    return res.json({
+      success: true,
+      reports: {
+        generatedAt: now,
+        reportRange: {
+          mode: rangeMode,
+          startDate: rangeStart,
+          endDate: rangeEnd,
+        },
+        bookingStatus,
+        paymentStatus,
+        usersByRole,
+        usersByAccountStatus,
+        paidRevenueByMonth,
+        latestPaidPayments,
+      },
+    });
+  } catch (error) {
+    return res.json({ success: false, message: error.message });
+  }
+};
+
 export const getAdminUsers = async (req, res) => {
   try {
     const users = await userModel

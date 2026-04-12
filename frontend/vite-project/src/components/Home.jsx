@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Users, Gauge, Fuel, LogIn, LoaderCircle, RefreshCcw } from 'lucide-react';
+import { ArrowRight, Users, Gauge, Fuel, LogIn, LoaderCircle, RefreshCcw, ShieldCheck, Mail, Phone } from 'lucide-react';
 import '../styles/Home.css';
 
 const Home = () => {
@@ -10,6 +10,9 @@ const Home = () => {
   const [vehicleError, setVehicleError] = useState('');
 
   const handleLogin = () => navigate('/login');
+  const scrollToSection = (sectionId) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   const fetchVehicles = async () => {
     try {
@@ -43,7 +46,7 @@ const Home = () => {
     <div className="home-container">
       <header className="home-header">
         <div className="logo-placeholder">NepRide</div>
-        <button className="btn-logout" onClick={handleLogin}>
+        <button className="btn-login-gold" onClick={handleLogin}>
           <LogIn size={18} /> Login
         </button>
       </header>
@@ -55,14 +58,99 @@ const Home = () => {
         <div className="hero-buttons">
           <button
             className="btn-primary-accent"
-            onClick={() => document.getElementById('fleet-section')?.scrollIntoView({ behavior: 'smooth' })}
+            onClick={() => scrollToSection('fleet-section')}
           >
             View Collection <ArrowRight size={20} />
           </button>
-          <button className="btn-secondary-accent">
-            Learn More
+          <button
+            className="btn-secondary-accent"
+            onClick={() => scrollToSection('public-about-section')}
+          >
+            About Us
+          </button>
+          <button
+            className="btn-secondary-accent"
+            onClick={() => scrollToSection('public-contact-section')}
+          >
+            Contact Us
           </button>
         </div>
+      </section>
+
+      <section className="landing-panels">
+        <article className="landing-panel">
+          <div className="landing-panel-icon">
+            <ShieldCheck size={18} />
+          </div>
+          <h2>Vehicles</h2>
+          <p>Browse live vendor listings, compare features, and reserve the right ride when you are ready.</p>
+          <button className="landing-panel-link" onClick={() => scrollToSection('fleet-section')}>
+            Explore Vehicles <ArrowRight size={16} />
+          </button>
+        </article>
+
+        <article className="landing-panel">
+          <div className="landing-panel-icon">
+            <Users size={18} />
+          </div>
+          <h2>About Us</h2>
+          <p>NepRide is built around verified vendors, clear booking flow, and a clean experience for customers and vendors.</p>
+          <button className="landing-panel-link" onClick={() => scrollToSection('public-about-section')}>
+            Learn More <ArrowRight size={16} />
+          </button>
+        </article>
+
+        <article className="landing-panel">
+          <div className="landing-panel-icon">
+            <Mail size={18} />
+          </div>
+          <h2>Contact Us</h2>
+          <p>Need help with booking, verification, or vendor support? Reach out through the contact page or call us directly.</p>
+          <div className="landing-panel-actions">
+            <button className="landing-panel-link" onClick={() => scrollToSection('public-contact-section')}>
+              Contact Details <ArrowRight size={16} />
+            </button>
+            <a className="landing-panel-call" href="tel:9816622940">
+              <Phone size={16} /> Call Support
+            </a>
+          </div>
+        </article>
+      </section>
+
+      <section id="public-about-section" className="landing-panels landing-panels-single">
+        <article className="landing-panel landing-panel-wide">
+          <div className="landing-panel-icon">
+            <Users size={18} />
+          </div>
+          <h2>About NepRide</h2>
+          <p>
+            NepRide helps customers find verified vehicles, compare listings quickly, and book with confidence through a clean rental experience.
+            We keep the flow simple for riders and practical for vendors, with transparent details and a focused booking process.
+          </p>
+        </article>
+      </section>
+
+      <section id="public-contact-section" className="landing-panels landing-panels-single">
+        <article className="landing-panel landing-panel-wide">
+          <div className="landing-panel-icon">
+            <Mail size={18} />
+          </div>
+          <h2>Contact NepRide</h2>
+          <p>
+            Email: roshanbastola02@gmail.com
+          </p>
+          <p style={{ marginTop: '0.5rem' }}>
+            Phone: 9816622940
+          </p>
+          <div className="landing-panel-actions">
+            <a className="landing-panel-call" href="mailto:roshanbastola02@gmail.com">
+              <Mail size={16} /> Email Support
+            </a>
+            <a className="landing-panel-call" href="tel:9816622940">
+              <Phone size={16} /> Call Support
+            </a>
+          </div>
+        </article>
       </section>
 
       <section id="fleet-section" className="fleet-section">
