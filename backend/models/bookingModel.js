@@ -115,6 +115,11 @@ bookingSchema.pre('validate', function syncTotalDays() {
     }
 });
 
+// Supports overlap checks for a vehicle and the expiry cleanup job.
+bookingSchema.index({ vehicle: 1, endDate: 1, status: 1 });
+bookingSchema.index({ vehicle: 1, status: 1, expiresAt: 1 });
+bookingSchema.index({ status: 1, expiresAt: 1 });
+
 const bookingModel = mongoose.models.booking || mongoose.model('booking', bookingSchema);
 
 export default bookingModel;

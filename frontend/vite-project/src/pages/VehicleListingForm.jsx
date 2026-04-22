@@ -17,7 +17,7 @@ const initialFormState = {
   bluebookUrl: '',
 };
 
-const vehicleTypeOptions = ['Car', 'Bike', 'Scooter', 'EV'];
+const vehicleTypeOptions = ['Car', 'Bike', 'Scooter'];
 const fuelTypeOptions = ['Petrol', 'Diesel', 'Electric'];
 
 const palette = {
@@ -202,7 +202,7 @@ const VehicleListingForm = () => {
     if (!formData.model.trim()) nextErrors.model = 'Model is required.';
     if (!formData.vehicleType) nextErrors.vehicleType = 'Please select a vehicle type.';
     if (!formData.fuelType) nextErrors.fuelType = 'Please select fuel type.';
-    if (!formData.image) nextErrors.image = 'Please upload a vehicle image.';
+    if (!formData.image && !isEditMode) nextErrors.image = 'Please upload a vehicle image.';
 
     const seatCapacity = Number(formData.seatCapacity);
     if (!Number.isFinite(seatCapacity) || seatCapacity < 1)
@@ -246,6 +246,11 @@ const VehicleListingForm = () => {
         pricePerDay: Number(formData.pricePerDay),
         ...(formData.speed !== '' ? { speed: Number(formData.speed) } : {}),
       };
+
+      if (isEditMode) {
+        if (!payload.image) delete payload.image;
+        if (!payload.bluebookUrl) delete payload.bluebookUrl;
+      }
 
       const endpoint = isEditMode ? `/api/vehicles/${editVehicle._id}` : '/api/vehicles';
       const method = isEditMode ? 'PUT' : 'POST';

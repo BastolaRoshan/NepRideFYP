@@ -43,7 +43,12 @@ app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/admin", adminRoutes);
 
+let isBookingExpirySweepRunning = false;
+
 const runBookingExpirySweep = async () => {
+  if (isBookingExpirySweepRunning) return;
+  isBookingExpirySweepRunning = true;
+
   try {
     const cancelledCount = await cancelExpiredPendingBookings();
     if (cancelledCount > 0) {
@@ -51,6 +56,8 @@ const runBookingExpirySweep = async () => {
     }
   } catch (error) {
     console.error('[booking-expiry-job] Failed:', error.message);
+  } finally {
+    isBookingExpirySweepRunning = false;
   }
 };
 

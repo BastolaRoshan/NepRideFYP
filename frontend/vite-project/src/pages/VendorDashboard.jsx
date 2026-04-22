@@ -57,7 +57,28 @@ const bookingStatusMeta = (status) => {
 };
 
 const formatMoney = (value) => `Rs. ${Number(value || 0).toLocaleString()}`;
-const fetch = apiFetch;
+const fetchJsonWithTimeout = async (url, options = {}) => {
+  const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : 12000;
+  const response = await apiFetch(url, {
+    ...options,
+    timeoutMs,
+  });
+
+  const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+  if (contentType.includes('application/json')) {
+    const data = await response.json();
+    return { response, data };
+  }
+
+  const rawText = await response.text();
+  return {
+    response,
+    data: {
+      success: false,
+      message: rawText || 'Unexpected server response',
+    },
+  };
+};
 
 const formatCountdown = (seconds) => {
   const safe = Math.max(0, Number(seconds || 0));
@@ -76,6 +97,14 @@ const formatDateRange = (startDate, endDate) => {
   const start = startDate ? formatter.format(new Date(startDate)) : 'N/A';
   const end = endDate ? formatter.format(new Date(endDate)) : 'N/A';
   return `${start} - ${end}`;
+};
+
+const VEHICLE_FALLBACK_IMAGE = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22640%22 height=%22360%22 viewBox=%220 0 640 360%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 x2=%221%22 y1=%220%22 y2=%221%22%3E%3Cstop offset=%220%25%22 stop-color=%22%23d9dfe8%22/%3E%3Cstop offset=%22100%25%22 stop-color=%22%23eef2f7%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill=%22url(%23g)%22 width=%22640%22 height=%22360%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 fill=%22%23A87A12%22 font-family=%22Arial%22 font-size=%2230%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22%3ENepRide Vehicle%3C/text%3E%3C/svg%3E';
+
+const resolveVehicleImageSrc = (vehicle) => {
+  if (vehicle?.image) return vehicle.image;
+  if (!vehicle?._id) return VEHICLE_FALLBACK_IMAGE;
+  return `/api/vehicles/image/${vehicle._id}`;
 };
 
 const VendorDashboard = () => {
@@ -105,7 +134,7 @@ const VendorDashboard = () => {
 
   const loadVerificationStatus = useCallback(async () => {
     try {
-      const response = await fetch('/api/user/verification-status', {
+      const response = await apiFetch('/api/user/verification-status', {
         method: 'GET',
         credentials: 'include',
       });
@@ -130,36 +159,68 @@ const VendorDashboard = () => {
 
   const loadDashboardData = useCallback(async () => {
     setLoading(true);
+    let failSafeTimerId = null;
+
+    failSafeTimerId = setTimeout(() => {
+      setLoading(false);
+      setMessage({ text: 'Loading took too long. Please refresh the page.', isError: true });
+    }, 15000);
 
     try {
-      const [vehicleResponse, bookingResponse] = await Promise.all([
-        fetch('/api/vehicles/vendor', { method: 'GET', credentials: 'include' }),
-        fetch('/api/bookings/vendor-bookings', { method: 'GET', credentials: 'include' }),
+      const [vehicleResult, bookingResult] = await Promise.allSettled([
+        fetchJsonWithTimeout('/api/vehicles/vendor', { method: 'GET', credentials: 'include', timeoutMs: 12000 }),
+        fetchJsonWithTimeout('/api/bookings/vendor-bookings', { method: 'GET', credentials: 'include', timeoutMs: 12000 }),
       ]);
 
-      const [vehicleData, bookingData] = await Promise.all([vehicleResponse.json(), bookingResponse.json()]);
+      let vehicleError = '';
+      let bookingError = '';
 
-      if (!vehicleResponse.ok || !vehicleData.success) {
-        throw new Error(vehicleData.message || 'Failed to load vehicles');
+      if (vehicleResult.status === 'fulfilled') {
+        const { response: vehicleResponse, data: vehicleData } = vehicleResult.value;
+
+        if (!vehicleResponse.ok || !vehicleData.success) {
+          vehicleError = vehicleData.message || 'Failed to load vehicles';
+        } else {
+          setVehicles(Array.isArray(vehicleData.vehicles) ? vehicleData.vehicles : []);
+        }
+      } else {
+        vehicleError = vehicleResult.reason?.message || 'Failed to load vehicles';
       }
 
-      if (!bookingResponse.ok || !bookingData.success) {
-        throw new Error(bookingData.message || 'Failed to load bookings');
+      if (bookingResult.status === 'fulfilled') {
+        const { response: bookingResponse, data: bookingData } = bookingResult.value;
+
+        if (!bookingResponse.ok || !bookingData.success) {
+          bookingError = bookingData.message || 'Failed to load bookings';
+        } else {
+          setBookings(Array.isArray(bookingData.bookings) ? bookingData.bookings : []);
+        }
+      } else {
+        bookingError = bookingResult.reason?.message || 'Failed to load bookings';
       }
 
-      setVehicles(Array.isArray(vehicleData.vehicles) ? vehicleData.vehicles : []);
-      setBookings(Array.isArray(bookingData.bookings) ? bookingData.bookings : []);
-      setMessage({ text: '', isError: false });
+      if (vehicleError && bookingError) {
+        setMessage({ text: `${vehicleError}. ${bookingError}.`, isError: true });
+      } else if (vehicleError) {
+        setMessage({ text: vehicleError, isError: true });
+      } else if (bookingError) {
+        setMessage({ text: `${bookingError}. Vehicle listings are still available.`, isError: true });
+      } else {
+        setMessage({ text: '', isError: false });
+      }
     } catch (error) {
       setMessage({ text: error.message || 'Unable to load vendor dashboard.', isError: true });
     } finally {
+      if (failSafeTimerId) {
+        clearTimeout(failSafeTimerId);
+      }
       setLoading(false);
     }
   }, []);
 
   const loadVendorBookingsRealtime = useCallback(async () => {
     try {
-      const response = await fetch('/api/bookings/vendor-bookings', { method: 'GET', credentials: 'include' });
+      const response = await apiFetch('/api/bookings/vendor-bookings', { method: 'GET', credentials: 'include', timeoutMs: 12000 });
       const data = await response.json();
 
       if (!response.ok || !data.success) {
@@ -367,7 +428,8 @@ const VendorDashboard = () => {
     setDeletingVehicleId(vehicleId);
 
     try {
-      const response = await fetch(`/api/vehicles/${vehicleId}`, {
+      const response = await apiFetch(`/api/vehicles/${vehicleId}`, {
+        timeoutMs: 12000,
         method: 'DELETE',
         credentials: 'include',
       });
@@ -395,7 +457,8 @@ const VendorDashboard = () => {
     setUpdatingBookingId(bookingId);
 
     try {
-      const response = await fetch(`/api/bookings/${bookingId}/status`, {
+      const response = await apiFetch(`/api/bookings/${bookingId}/status`, {
+        timeoutMs: 12000,
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -594,6 +657,23 @@ const VendorDashboard = () => {
       </nav>
 
       <main style={{ maxWidth: '1240px', margin: '0 auto', padding: '1.5rem' }}>
+        {message.text && activeTab !== 'overview' && (
+          <div
+            style={{
+              ...cardStyle,
+              marginBottom: '1rem',
+              padding: '0.9rem 1rem',
+              border: message.isError ? '1px solid #FCA5A5' : '1px solid #86EFAC',
+              backgroundColor: message.isError ? '#FEF2F2' : '#ECFDF3',
+              color: message.isError ? palette.rejected : palette.approved,
+              fontSize: '0.9rem',
+              fontWeight: 600,
+            }}
+          >
+            {message.text}
+          </div>
+        )}
+
         {activeTab === 'overview' && (
         <section
           style={{
@@ -757,7 +837,7 @@ const VendorDashboard = () => {
                     <div key={vehicle._id} style={{ display: 'grid', gridTemplateColumns: '96px 1fr auto', gap: '0.9rem', padding: '0.85rem', border: `1px solid ${palette.border}`, borderRadius: '16px', backgroundColor: palette.surface, alignItems: 'center' }}>
                       <div style={{ width: '96px', height: '72px', borderRadius: '14px', overflow: 'hidden', backgroundColor: '#E5E7EB' }}>
                         <img
-                          src={vehicle.image}
+                          src={resolveVehicleImageSrc(vehicle)}
                           alt={vehicle.title || vehicle.name || 'Vehicle'}
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         />
@@ -899,7 +979,7 @@ const VendorDashboard = () => {
                   <article key={vehicle._id} style={{ border: `1px solid ${palette.border}`, borderRadius: '18px', overflow: 'hidden', backgroundColor: palette.card }}>
                     <div style={{ aspectRatio: '16 / 9', backgroundColor: '#E5E7EB' }}>
                       <img
-                        src={vehicle.image}
+                        src={resolveVehicleImageSrc(vehicle)}
                         alt={vehicle.title || vehicle.name || 'Vehicle'}
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />

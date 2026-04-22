@@ -457,8 +457,10 @@ export const getAdminVehicles = async (req, res) => {
   try {
     const vehicles = await vehicleModel
       .find()
+      .select("title name model seatCapacity seats vehicleType type fuelType fuel pricePerDay speed registrationNumber ratingAverage ratingCount vendor createdAt updatedAt")
       .sort({ createdAt: -1 })
-      .populate("vendor", "name email phone role");
+      .populate("vendor", "name email phone role")
+      .lean();
 
     return res.json({
       success: true,

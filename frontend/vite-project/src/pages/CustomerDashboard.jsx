@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
-import { Search, Clock, Clock3, Users, Gauge, Fuel, Wallet, ArrowRight, RefreshCcw, ShieldCheck, BadgeCheck, Send, Mail, Phone } from 'lucide-react';
+import { Search, Clock, Clock3, Users, Gauge, Fuel, Wallet, ArrowRight, ShieldCheck, BadgeCheck, Send, Mail, Phone } from 'lucide-react';
 import '../styles/Home.css';
 import BookingModal from '../components/BookingModal';
 import CustomerPortalHeader from '../components/CustomerPortalHeader';
@@ -13,6 +13,14 @@ const formatCountdown = (remainingSeconds) => {
     const minutes = Math.floor(safeSeconds / 60);
     const seconds = safeSeconds % 60;
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+};
+
+const VEHICLE_FALLBACK_IMAGE = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22640%22 height=%22360%22 viewBox=%220 0 640 360%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 x2=%221%22 y1=%220%22 y2=%221%22%3E%3Cstop offset=%220%25%22 stop-color=%22%231d222d%22/%3E%3Cstop offset=%22100%25%22 stop-color=%22%232e3645%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill=%22url(%23g)%22 width=%22640%22 height=%22360%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 fill=%22%23d4af37%22 font-family=%22Arial%22 font-size=%2230%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22%3ENepRide Vehicle%3C/text%3E%3C/svg%3E';
+
+const resolveVehicleImageSrc = (vehicle) => {
+    if (vehicle?.image) return vehicle.image;
+    if (!vehicle?._id) return VEHICLE_FALLBACK_IMAGE;
+    return `/api/vehicles/image/${vehicle._id}`;
 };
 
 const CustomerDashboard = () => {
@@ -532,7 +540,10 @@ const CustomerDashboard = () => {
                         <h1 className="hero-title" style={{ fontSize: '3rem', marginBottom: '1.5rem' }}>
                             Find Your <span className="text-accent">Perfect Ride</span>
                         </h1>
-                        <div style={{ display: 'flex', gap: '1rem', maxWidth: '600px' }}>
+                        <form
+                            onSubmit={(e) => e.preventDefault()}
+                            style={{ display: 'flex', gap: '1rem', maxWidth: '600px' }}
+                        >
                             <input
                                 type="text"
                                 placeholder="Search vehicles e.g. Car, Bike..."
@@ -540,10 +551,10 @@ const CustomerDashboard = () => {
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 style={{ flex: 1, padding: '1rem', borderRadius: '4px', border: '1px solid #333', backgroundColor: '#1a1a1a', color: '#fff' }}
                             />
-                            <button className="btn-primary-accent" style={{ padding: '1rem' }} onClick={fetchVehicles}>
-                                <RefreshCcw size={20} /> Refresh
+                            <button type="submit" className="btn-primary-accent" style={{ padding: '1rem' }}>
+                                <Search size={20} /> Search
                             </button>
-                        </div>
+                        </form>
                     </section>
 
                     <section className="fleet-section">
@@ -585,7 +596,7 @@ const CustomerDashboard = () => {
                                     return (
                                         <div key={vehicle._id || `${title}-${index}`} className="vehicle-card">
                                             <div className="vehicle-image-container">
-                                                <img src={vehicle.image} alt={title} />
+                                                <img src={resolveVehicleImageSrc(vehicle)} alt={title} />
                                             </div>
 
                                             <div className="vehicle-info">
@@ -626,14 +637,14 @@ const CustomerDashboard = () => {
                                                 <button
                                                     className="btn-reserve"
                                                     onClick={() => handleBookNow(vehicle)}
-                                                    disabled={isServiceLocked}
                                                     style={{
                                                         marginTop: '1rem',
                                                         width: '100%',
                                                         backgroundColor: isServiceLocked ? '#554616' : undefined,
-                                                        cursor: isServiceLocked ? 'not-allowed' : 'pointer',
+                                                        cursor: 'pointer',
                                                         opacity: isServiceLocked ? 0.75 : 1,
                                                     }}
+                                                    title={isServiceLocked ? 'Account verification is required to book vehicles.' : 'Reserve this vehicle'}
                                                 >
                                                     Reserve Now <ArrowRight size={16} />
                                                 </button>
@@ -656,9 +667,6 @@ const CustomerDashboard = () => {
                                 Track your booking status and rental dates here.
                             </p>
                         </div>
-                        <button className="btn-secondary-accent" onClick={fetchCustomerBookings} style={{ padding: '0.6rem 1rem' }}>
-                            <RefreshCcw size={16} /> Refresh
-                        </button>
                     </div>
 
                     {loadingBookings ? (

@@ -205,6 +205,7 @@ const BookingModal = ({ vehicle, onClose, onBookingCreated, isServiceAccessAllow
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
+                timeoutMs: 30000,
                 body: JSON.stringify({
                     vehicleId: vehicle._id,
                     startDate: startDateTime.toISOString(),
@@ -225,7 +226,10 @@ const BookingModal = ({ vehicle, onClose, onBookingCreated, isServiceAccessAllow
                 onBookingCreated(data.booking);
             }
         } catch (error) {
-            setBookingError(error.message || 'Network error while creating booking.');
+            const isTimeout = String(error?.message || '').toLowerCase().includes('timed out');
+            setBookingError(isTimeout
+                ? 'Booking request timed out. Please try again in a moment.'
+                : (error.message || 'Network error while creating booking.'));
         } finally {
             setBookingLoading(false);
         }

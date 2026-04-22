@@ -66,25 +66,36 @@ const isBookingBlocking = (booking, referenceTime = new Date()) => {
 
 const getBlockingBookings = async ({ vehicleId, sinceDate, excludeBookingId = null }) => {
     const now = new Date();
+    const since = new Date(sinceDate || 0);
 
-    const query = {
-        vehicle: vehicleId,
-        endDate: { $gt: sinceDate },
-        $or: [
-            { status: { $in: ACTIVE_BLOCKING_STATUSES } },
-            { status: 'pending_payment', expiresAt: { $gt: now } },
-            { status: 'Pending', expiresAt: { $gt: now } },
-        ],
-    };
-
-    if (excludeBookingId) {
-        query._id = { $ne: excludeBookingId };
-    }
-
-    return bookingModel
-        .find(query)
+    // Split $or into separate indexed queries for better performance
+    const confirmedBookings = await bookingModel
+        .find({
+            vehicle: vehicleId,
+            status: { $in: ACTIVE_BLOCKING_STATUSES },
+            endDate: { $gt: since },
+            ...(excludeBookingId ? { _id: { $ne: excludeBookingId } } : {}),
+        })
         .select('_id status startDate endDate expiresAt')
-        .sort({ startDate: 1, endDate: 1 });
+        .maxTimeMS(5000)
+        .lean();
+
+    const pendingBookings = await bookingModel
+        .find({
+            vehicle: vehicleId,
+            status: { $in: ['pending_payment', 'Pending'] },
+            expiresAt: { $gt: now },
+            endDate: { $gt: since },
+            ...(excludeBookingId ? { _id: { $ne: excludeBookingId } } : {}),
+        })
+        .select('_id status startDate endDate expiresAt')
+        .maxTimeMS(5000)
+        .lean();
+
+    const combined = [...confirmedBookings, ...pendingBookings];
+    return combined.sort((a, b) => 
+        new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+    );
 };
 
 const intervalsOverlap = (firstStart, firstEnd, secondStart, secondEnd) => {
@@ -346,7 +357,7 @@ export const getCustomerBookings = async (req, res) => {
     try {
         const bookings = await bookingModel
             .find({ customer: req.user._id })
-            .populate("vehicle");
+            .populate("vehicle", "title name pricePerDay vehicleType type fuelType fuel seatCapacity seats vendor");
 
         await Promise.all(bookings.map((booking) => autoCompleteEndedBooking(booking)));
 
@@ -369,7 +380,7 @@ export const getVendorBookings = async (req, res) => {
         // Find bookings for these vehicles
         const bookings = await bookingModel
             .find({ vehicle: { $in: vehicleIds } })
-            .populate("vehicle")
+            .populate("vehicle", "title name pricePerDay vehicleType type fuelType fuel seatCapacity seats vendor")
             .populate("customer", "name email phone");
 
         await Promise.all(bookings.map((booking) => autoCompleteEndedBooking(booking)));
@@ -394,7 +405,9 @@ export const updateBookingStatus = async (req, res) => {
         }
 
         // Find booking and ensure the vendor owns the connected vehicle
-        const booking = await bookingModel.findById(req.params.id).populate("vehicle");
+        const booking = await bookingModel
+            .findById(req.params.id)
+            .populate("vehicle", "title name vendor");
 
         if (!booking) {
             return res.json({ success: false, message: "Booking not found" });
@@ -448,7 +461,7 @@ export const getBookingById = async (req, res) => {
     try {
         const booking = await bookingModel
             .findById(req.params.id)
-            .populate('vehicle')
+            .populate('vehicle', 'title name pricePerDay vehicleType type fuelType fuel seatCapacity seats vendor')
             .populate('customer', 'name email phone role');
 
         if (!booking) {
@@ -830,20 +843,25 @@ export const addBookingRating = async (req, res) => {
 
 export const cancelExpiredPendingBookings = async () => {
     const now = new Date();
-    const result = await bookingModel.updateMany(
-        {
-            status: 'pending_payment',
-            expiresAt: { $lt: now },
-        },
-        {
-            $set: {
-                status: 'cancelled',
-                cancelledAt: now,
-                cancellationReason: 'Payment window expired',
-                expiresAt: null,
+    try {
+        const result = await bookingModel.updateMany(
+            {
+                status: 'pending_payment',
+                expiresAt: { $lt: now },
             },
-        }
-    );
+            {
+                $set: {
+                    status: 'cancelled',
+                    cancelledAt: now,
+                    cancellationReason: 'Payment window expired',
+                    expiresAt: null,
+                },
+            }
+        ).maxTimeMS(3000); // Prevent blocking user requests
 
-    return result.modifiedCount || 0;
+        return result.modifiedCount || 0;
+    } catch (error) {
+        console.error('[cancelExpiredPendingBookings] Timeout or error:', error.message);
+        return 0; // Return 0 if timed out, don't crash
+    }
 };

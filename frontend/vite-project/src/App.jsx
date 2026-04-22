@@ -6,6 +6,8 @@ import SignUp from './components/SignUp';
 import ProtectedRoute from './components/ProtectedRoute';
 import VendorDashboard from './pages/VendorDashboard';
 import CustomerDashboard from './pages/CustomerDashboard';
+import AboutUsPage from './pages/AboutUsPage';
+import ContactUsPage from './pages/ContactUsPage';
 import VehicleListingForm from './pages/VehicleListingForm';
 import AdminDashboard from './pages/AdminDashboard';
 import PaymentPage from './pages/PaymentPage';
@@ -77,7 +79,7 @@ function App() {
           path="/customer-dashboard/contact"
           element={
             <ProtectedRoute allowedRoles={['Customer', 'Admin']} requireServiceAccess={false}>
-              <CustomerDashboard />
+              <ContactUsPage />
             </ProtectedRoute>
           }
         />
@@ -86,7 +88,7 @@ function App() {
           path="/customer-dashboard/about"
           element={
             <ProtectedRoute allowedRoles={['Customer', 'Admin']} requireServiceAccess={false}>
-              <CustomerDashboard />
+              <AboutUsPage />
             </ProtectedRoute>
           }
         />

@@ -1,6 +1,6 @@
 import vehicleModel from "../models/vehicleModel.js";
 import userModel from "../models/userModel.js";
-import { getVerificationAccessPayload, normalizeRole } from "../utils/verification.js";
+import { normalizeRole } from "../utils/verification.js";
 
 const toFiniteNumber = (value) => {
     const parsed = Number(value);
@@ -153,7 +153,12 @@ export const addVehicle = async (req, res) => {
 
 export const getVendorVehicles = async (req, res) => {
     try {
-        const vehicles = await vehicleModel.find({ vendor: req.user._id }).sort({ createdAt: -1 });
+        const vehicles = await vehicleModel
+            .find({ vendor: req.user._id })
+            .select("title name overview model seatCapacity seats vehicleType type fuelType fuel pricePerDay speed registrationNumber ratingAverage ratingCount ratingSum vendor createdAt updatedAt")
+            .sort({ createdAt: -1 })
+            .lean();
+
         res.json({
             success: true,
             count: vehicles.length,
@@ -270,28 +275,43 @@ export const getAllVehicles = async (req, res) => {
     try {
         const requestedLimit = toPositiveInteger(req.query.limit);
 
-        const query = vehicleModel
-            .find()
+        const approvedVendors = await userModel
+            .find({
+                role: "Vendor",
+                verificationStatus: "Approved",
+                accountStatus: { $nin: ["suspended", "blocked"] },
+            })
+            .select("name vendorRatingAverage vendorRatingCount")
+            .lean();
+
+        const approvedVendorIds = approvedVendors.map((vendor) => vendor._id);
+
+        if (approvedVendorIds.length === 0) {
+            return res.json({
+                success: true,
+                count: 0,
+                vehicles: [],
+            });
+        }
+
+        const vendorById = new Map(
+            approvedVendors.map((vendor) => [String(vendor._id), vendor])
+        );
+
+        const vehicles = await vehicleModel
+            .find({ vendor: { $in: approvedVendorIds } })
+            .select("title name model seatCapacity seats vehicleType type fuelType fuel pricePerDay speed registrationNumber ratingAverage ratingCount vendor createdAt updatedAt")
             .sort({ createdAt: -1 })
-            .populate("vendor", "name email role accountStatus verificationStatus verificationReviewedAt documents isVerified vendorRatingAverage vendorRatingCount");
+            .lean();
 
-        const vehicles = await query;
-        const visibleVehicles = vehicles.filter((vehicle) => {
-            const vendor = vehicle?.vendor;
+        const hydratedVehicles = vehicles
+            .map((vehicle) => ({
+                ...vehicle,
+                vendor: vendorById.get(String(vehicle.vendor)) || null,
+            }))
+            .filter((vehicle) => Boolean(vehicle.vendor));
 
-            if (!vendor) {
-                return false;
-            }
-
-            if (normalizeRole(vendor.role) !== "Vendor") {
-                return false;
-            }
-
-            const { isServiceAccessAllowed } = getVerificationAccessPayload(vendor);
-            return isServiceAccessAllowed;
-        });
-
-        const limitedVehicles = requestedLimit ? visibleVehicles.slice(0, requestedLimit) : visibleVehicles;
+        const limitedVehicles = requestedLimit ? hydratedVehicles.slice(0, requestedLimit) : hydratedVehicles;
 
         res.json({
             success: true,
@@ -300,5 +320,64 @@ export const getAllVehicles = async (req, res) => {
         });
     } catch (error) {
         res.json({ success: false, message: error.message });
+    }
+};
+
+export const getVehicleImageById = async (req, res) => {
+    try {
+        const vehicle = await vehicleModel
+            .findById(req.params.id)
+            .select("image vendor")
+            .lean();
+
+        if (!vehicle) {
+            return res.status(404).json({ success: false, message: "Vehicle not found" });
+        }
+
+        const vendor = await userModel
+            .findById(vehicle.vendor)
+            .select("role accountStatus verificationStatus")
+            .lean();
+
+        if (!vendor) {
+            return res.status(404).json({ success: false, message: "Vendor not found" });
+        }
+
+        if (normalizeRole(vendor.role) !== "Vendor") {
+            return res.status(403).json({ success: false, message: "Image not available" });
+        }
+
+        const accountStatus = String(vendor.accountStatus || "active").toLowerCase();
+        const isAccountActive = accountStatus !== "suspended" && accountStatus !== "blocked";
+        const isApproved = String(vendor.verificationStatus || "").trim() === "Approved";
+
+        if (!isAccountActive || !isApproved) {
+            return res.status(403).json({ success: false, message: "Image not available" });
+        }
+
+        const imageValue = String(vehicle.image || "").trim();
+
+        if (!imageValue) {
+            return res.status(404).json({ success: false, message: "Image not found" });
+        }
+
+        if (/^https?:\/\//i.test(imageValue) || imageValue.startsWith("/uploads/")) {
+            return res.redirect(imageValue);
+        }
+
+        const dataUriMatch = imageValue.match(/^data:([^;]+);base64,(.+)$/);
+        if (dataUriMatch) {
+            const mimeType = dataUriMatch[1] || "application/octet-stream";
+            const base64Payload = dataUriMatch[2] || "";
+            const imageBuffer = Buffer.from(base64Payload, "base64");
+
+            res.setHeader("Content-Type", mimeType);
+            res.setHeader("Cache-Control", "public, max-age=300");
+            return res.status(200).send(imageBuffer);
+        }
+
+        return res.status(400).json({ success: false, message: "Unsupported image format" });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
     }
 };

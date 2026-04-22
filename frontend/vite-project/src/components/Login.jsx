@@ -43,11 +43,24 @@ const Login = () => {
 
       clearTimeout(timeoutId);
 
+      const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+      const isJson = contentType.includes('application/json');
+      const payload = isJson ? await response.json() : { message: await response.text() };
+      const data = payload && typeof payload === 'object' ? payload : { message: 'Unexpected server response' };
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        if (response.status >= 500) {
+          const proxyDownHint = /ecconnrefused|connect econnrefused|proxy|target unavailable|socket hang up/i.test(String(data.message || ''));
+          if (proxyDownHint) {
+            throw new Error('Backend server is not reachable. Start backend with npm run dev in backend folder.');
+          }
+
+          throw new Error('Server error during login. Please check backend logs and try again.');
+        }
+
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
       console.log('Login response:', data);
 
       if (data.success) {

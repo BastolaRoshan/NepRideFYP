@@ -5,6 +5,7 @@ import {
     updateVehicle,
     deleteVehicle,
     getAllVehicles,
+    getVehicleImageById,
 } from "../controllers/vehicleController.js";
 import { protect, authorizeRoles, requireApprovedVerification } from "../middleware/roleAuth.js";
 
@@ -12,6 +13,7 @@ const router = express.Router();
 
 // Public route for customers (or anyone) to see all vehicles
 router.get("/", getAllVehicles);
+router.get("/image/:id", getVehicleImageById);
 
 // All routes below require login and Vendor role
 router.use(protect);
